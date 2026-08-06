@@ -8,12 +8,15 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import libsql_client as libsql
 
-# Configuración de página
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
     page_title="Sistema de Asistencia Escolar",
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# --- URL BASE ACTIVA ---
+URL_BASE = "https://sistema-asistencia-colegio-zjggkkwftvrnj2w9kkjvrg.streamlit.app"
 
 # Estilos CSS
 ESTILOS_AJUSTADOS = """
