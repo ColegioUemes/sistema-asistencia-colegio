@@ -342,7 +342,7 @@ if "id" in query_params:
                         tipo_registro=tipo_movimiento
                     )
                     if exito:
-                        st.info(f"📧 Se ha enviado una notificación de {tipo_movimiento.lower()} por correo a: {email_usuario}")
+                        st.info(f"Se ha enviado una notificación de {tipo_movimiento.lower()} por correo a: {email_usuario}")
                     else:
                         st.warning(f"{tipo_movimiento} registrada, pero no se pudo enviar el correo ({msg}).")
                 else:
@@ -351,7 +351,7 @@ if "id" in query_params:
             except Exception as e:
                 st.error(f"Error al guardar la asistencia: {e}")
         else:
-            st.warning(f"⚠️ {nombre} {apellido}, ya registraste tanto tu ENTRADA como tu SALIDA para la jornada de hoy.")
+            st.warning(f"{nombre} {apellido}, ya registraste tanto tu ENTRADA como tu SALIDA para la jornada de hoy.")
 
     else:
         st.error(f"El código ID '{codigo_qr}' no está registrado en el sistema.")
@@ -367,7 +367,7 @@ if "reporte_grado_sel" not in st.session_state:
 
 # --- BARRA LATERAL ---
 with st.sidebar:
-    st.title("🏫 Control Escolar")
+    st.title("Control Escolar")
     st.markdown("---")
     
     opcion = st.radio(
@@ -376,7 +376,7 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    with st.expander("⚙️ Configuración Correo (SMTP)"):
+    with st.expander("Configuración Correo (SMTP)"):
         st.caption("Ajustes para envío automático:")
         st.session_state["smtp_server"] = st.text_input("Servidor SMTP", value=st.session_state.get("smtp_server", "smtp.gmail.com"))
         st.session_state["smtp_port"] = st.number_input("Puerto", value=st.session_state.get("smtp_port", 587))
