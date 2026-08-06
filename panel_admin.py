@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import libsql_experimental as libsql
+import libsql_client as libsql
 
 # Configuración de página
 st.set_page_config(
@@ -159,46 +159,41 @@ def conectar_bd():
     try:
         url = st.secrets["turso"]["url"]
         auth_token = st.secrets["turso"]["auth_token"]
-        conn = libsql.connect("colegio.db", sync_url=url, auth_token=auth_token)
-        conn.sync()
+        if url.startswith("libsql://"):
+            url = url.replace("libsql://", "https://")
+        client = libsql.create_client_sync(url=url, auth_token=auth_token)
+        return client
     except Exception:
-        conn = sqlite3.connect("colegio.db")
+        return sqlite3.connect("colegio.db")
 
-    cursor = conn.cursor()
-    
-    # Crear tablas si no existen en la nube
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS usuarios (
-            codigo_id TEXT PRIMARY KEY,
-            nombre TEXT,
-            apellido TEXT,
-            tipo_persona TEXT,
-            grado_seccion TEXT,
-            funcion_cargo TEXT,
-            email TEXT
-        )
-    ''')
-    
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS asistencias (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            codigo_id TEXT,
-            fecha TEXT,
-            hora TEXT,
-            tipo_registro TEXT,
-            UNIQUE(codigo_id, fecha)
-        )
-    ''')
-    
-    cursor.execute("PRAGMA table_info(usuarios)")
-    columnas = [col[1] for col in cursor.fetchall()]
-    if "email" not in columnas:
-        cursor.execute("ALTER TABLE usuarios ADD COLUMN email TEXT")
-        conn.commit()
-        if hasattr(conn, "sync"):
-            conn.sync()
-            
-    return conn
+def inicializar_tablas():
+    try:
+        db = conectar_bd()
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS usuarios (
+                codigo_id TEXT PRIMARY KEY,
+                nombre TEXT,
+                apellido TEXT,
+                tipo_persona TEXT,
+                grado_seccion TEXT,
+                funcion_cargo TEXT,
+                email TEXT
+            )
+        ''')
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS asistencias (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                codigo_id TEXT,
+                fecha TEXT,
+                hora TEXT,
+                tipo_registro TEXT,
+                UNIQUE(codigo_id, fecha)
+            )
+        ''')
+    except Exception:
+        pass
+
+inicializar_tablas()
 
 # --- FUNCIÓN DE ENVÍO DE CORREO ELECTRÓNICO ---
 def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grado, fecha, hora):
@@ -261,23 +256,18 @@ if "id" in query_params:
     fecha_hoy = ahora_ve.strftime("%Y-%m-%d")
     hora_actual = ahora_ve.strftime("%H:%M:%S")
 
-    conn = conectar_bd()
-    cursor = conn.cursor()
-
-    cursor.execute("SELECT nombre, apellido, tipo_persona, grado_seccion, email FROM usuarios WHERE codigo_id = ?", (codigo_qr,))
-    usuario = cursor.fetchone()
+    db = conectar_bd()
+    res = db.execute("SELECT nombre, apellido, tipo_persona, grado_seccion, email FROM usuarios WHERE codigo_id = ?", (codigo_qr,))
+    usuario = res.fetchone()
 
     if usuario:
-        nombre, apellido, tipo_persona, grado, email_usuario = usuario
+        nombre, apellido, tipo_persona, grado, email_usuario = usuario[0], usuario[1], usuario[2], usuario[3], usuario[4]
         
         try:
-            cursor.execute('''
+            db.execute('''
                 INSERT INTO asistencias (codigo_id, fecha, hora, tipo_registro)
                 VALUES (?, ?, ?, ?)
             ''', (codigo_qr, fecha_hoy, hora_actual, 'Entrada'))
-            conn.commit()
-            if hasattr(conn, "sync"):
-                conn.sync()
             st.success(f"¡Asistencia registrada correctamente! Marcaje para {nombre} {apellido} ({tipo_persona} - {grado}) a las {hora_actual}.")
 
             if email_usuario:
@@ -296,8 +286,8 @@ if "id" in query_params:
             else:
                 st.caption("El usuario no tiene un correo electrónico asociado para notificaciones.")
 
-        except (sqlite3.IntegrityError, Exception) as e:
-            if "UNIQUE constraint failed" in str(e) or "IntegrityError" in str(type(e)):
+        except Exception as e:
+            if "UNIQUE" in str(e) or "IntegrityError" in str(e):
                 st.warning(f"⚠️ {nombre} {apellido}, ya registraste tu asistencia para la jornada de hoy.")
             else:
                 st.error(f"Error al guardar la asistencia: {e}")
@@ -305,7 +295,6 @@ if "id" in query_params:
     else:
         st.error(f"El código ID '{codigo_qr}' no está registrado en el sistema.")
     
-    conn.close()
     st.markdown("---")
 
 # Variables de estado para navegación
@@ -340,37 +329,34 @@ if opcion == "Dashboard & Asistencias":
     
     fecha_hoy = datetime.now(ZoneInfo("America/Caracas")).strftime("%Y-%m-%d")
     
-    conn = conectar_bd()
-    query_hoy = '''
+    db = conectar_bd()
+    res = db.execute('''
         SELECT a.hora, a.codigo_id, u.nombre, u.apellido, u.tipo_persona, u.grado_seccion, u.funcion_cargo 
         FROM asistencias a
         JOIN usuarios u ON a.codigo_id = u.codigo_id
         WHERE a.fecha = ?
         ORDER BY a.hora DESC
-    '''
-    df_asistencias = pd.read_sql_query(query_hoy, conn, params=(fecha_hoy,))
-    conn.close()
+    ''', (fecha_hoy,))
+    
+    filas = res.fetchall()
+    columnas = ["Hora", "Código ID", "Nombre", "Apellido", "Tipo", "Grado", "Cargo / Función"]
+    df_asistencias = pd.DataFrame(filas, columns=columnas) if filas else pd.DataFrame(columns=columnas)
 
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total Registrados Hoy", len(df_asistencias))
     with col2:
-        alumnos_hoy = len(df_asistencias[df_asistencias['tipo_persona'] == 'Estudiante']) if not df_asistencias.empty else 0
+        alumnos_hoy = len(df_asistencias[df_asistencias['Tipo'] == 'Estudiante']) if not df_asistencias.empty else 0
         st.metric("Estudiantes Presentes", alumnos_hoy)
     with col3:
-        personal_hoy = len(df_asistencias[df_asistencias['tipo_persona'] == 'Personal']) if not df_asistencias.empty else 0
+        personal_hoy = len(df_asistencias[df_asistencias['Tipo'] == 'Personal']) if not df_asistencias.empty else 0
         st.metric("Personal Presente", personal_hoy)
 
     st.markdown("---")
     st.subheader("Últimas Entradas Marcadas Hoy")
     
     if not df_asistencias.empty:
-        df_mostrar = df_asistencias.rename(columns={
-            "hora": "Hora", "codigo_id": "Código ID", "nombre": "Nombre",
-            "apellido": "Apellido", "tipo_persona": "Tipo",
-            "grado_seccion": "Grado", "funcion_cargo": "Cargo / Función"
-        })
-        st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
+        st.dataframe(df_asistencias, use_container_width=True, hide_index=True)
     else:
         st.info("Aún no hay registros de asistencia para la fecha de hoy.")
 
@@ -415,15 +401,17 @@ elif opcion == "Directorio por Grados":
     st.markdown("---")
 
     cat_activa = st.session_state["grado_seleccionado"]
-    conn = conectar_bd()
-    df_usuarios = pd.read_sql_query("SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios", conn)
-    conn.close()
+    db = conectar_bd()
+    res = db.execute("SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios")
+    filas = res.fetchall()
+    cols = ["codigo_id", "nombre", "apellido", "tipo_persona", "grado_seccion", "funcion_cargo", "email"]
+    df_usuarios = pd.DataFrame(filas, columns=cols) if filas else pd.DataFrame(columns=cols)
 
     if cat_activa == "Personal":
-        df_grupo = df_usuarios[df_usuarios["tipo_persona"] == "Personal"]
+        df_grupo = df_usuarios[df_usuarios["tipo_persona"] == "Personal"] if not df_usuarios.empty else df_usuarios
         titulo_seccion = "Personal de la Institución"
     else:
-        df_grupo = df_usuarios[df_usuarios["grado_seccion"] == cat_activa]
+        df_grupo = df_usuarios[df_usuarios["grado_seccion"] == cat_activa] if not df_usuarios.empty else df_usuarios
         titulo_seccion = f"Lista de Alumnos: Grado {cat_activa}"
 
     st.subheader(f"{titulo_seccion} ({len(df_grupo)} asignados)")
@@ -450,28 +438,24 @@ elif opcion == "Directorio por Grados":
                 btn_guardar = st.form_submit_button("Guardar Cambios")
 
                 if btn_guardar:
-                    conn = conectar_bd()
-                    cursor = conn.cursor()
-                    cursor.execute('''
+                    db = conectar_bd()
+                    db.execute('''
                         UPDATE usuarios 
                         SET nombre = ?, apellido = ?, tipo_persona = ?, grado_seccion = ?, funcion_cargo = ?, email = ?
                         WHERE codigo_id = ?
                     ''', (nuevo_nombre, nuevo_apellido, tipo_persona, grado, cargo, nuevo_email, codigo_sel))
-                    conn.commit()
-                    if hasattr(conn, "sync"):
-                        conn.sync()
-                    conn.close()
                     st.success(f"¡Datos actualizados para el código {codigo_sel}!")
                     st.rerun()
         else:
             st.write("No hay usuarios registrados en esta categoría.")
 
-    df_tabla_limpia = df_grupo.rename(columns={
-        "codigo_id": "Código ID", "nombre": "Nombre", "apellido": "Apellido",
-        "tipo_persona": "Rol", "grado_seccion": "Grado", "funcion_cargo": "Cargo / Función",
-        "email": "Correo Electrónico"
-    })
-    st.dataframe(df_tabla_limpia, use_container_width=True, hide_index=True)
+    if not df_grupo.empty:
+        df_tabla_limpia = df_grupo.rename(columns={
+            "codigo_id": "Código ID", "nombre": "Nombre", "apellido": "Apellido",
+            "tipo_persona": "Rol", "grado_seccion": "Grado", "funcion_cargo": "Cargo / Función",
+            "email": "Correo Electrónico"
+        })
+        st.dataframe(df_tabla_limpia, use_container_width=True, hide_index=True)
 
 # --- SECCIÓN 3: EXPORTAR REPORTES POR GRADO Y GENERAL ---
 elif opcion == "Exportar Reportes":
@@ -484,17 +468,19 @@ elif opcion == "Exportar Reportes":
 
     st.write("")
 
-    conn = conectar_bd()
-    query_global = '''
+    db = conectar_bd()
+    res = db.execute('''
         SELECT a.fecha as Fecha, a.hora as Hora, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
                u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo 
         FROM asistencias a
         JOIN usuarios u ON a.codigo_id = u.codigo_id
         WHERE a.fecha = ?
         ORDER BY a.hora ASC
-    '''
-    df_global = pd.read_sql_query(query_global, conn, params=(fecha_sel.strftime("%Y-%m-%d"),))
-    conn.close()
+    ''', (fecha_sel.strftime("%Y-%m-%d"),))
+    
+    filas = res.fetchall()
+    cols_exp = ["Fecha", "Hora", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]
+    df_global = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
 
     if not df_global.empty:
         csv_global = df_global.to_csv(index=False, encoding='utf-8-sig')
@@ -547,34 +533,32 @@ elif opcion == "Exportar Reportes":
 
     cat_rep_activa = st.session_state["reporte_grado_sel"]
 
-    conn = conectar_bd()
+    db = conectar_bd()
     if cat_rep_activa == "Personal":
-        query_exp = '''
+        res = db.execute('''
             SELECT a.fecha as Fecha, a.hora as Hora, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
                    u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo 
             FROM asistencias a
             JOIN usuarios u ON a.codigo_id = u.codigo_id
             WHERE a.fecha = ? AND u.tipo_persona = 'Personal'
             ORDER BY a.hora ASC
-        '''
-        params = (fecha_sel.strftime("%Y-%m-%d"),)
+        ''', (fecha_sel.strftime("%Y-%m-%d"),))
         nombre_archivo = f"asistencia_Personal_{fecha_sel.strftime('%Y-%m-%d')}.csv"
         etiqueta_seccion = "Reporte de Asistencia: Personal"
     else:
-        query_exp = '''
+        res = db.execute('''
             SELECT a.fecha as Fecha, a.hora as Hora, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
                    u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo 
             FROM asistencias a
             JOIN usuarios u ON a.codigo_id = u.codigo_id
             WHERE a.fecha = ? AND u.grado_seccion = ?
             ORDER BY a.hora ASC
-        '''
-        params = (fecha_sel.strftime("%Y-%m-%d"), cat_rep_activa)
+        ''', (fecha_sel.strftime("%Y-%m-%d"), cat_rep_activa))
         nombre_archivo = f"asistencia_{cat_rep_activa}_{fecha_sel.strftime('%Y-%m-%d')}.csv"
         etiqueta_seccion = f"Reporte de Asistencia: Grado {cat_rep_activa}"
 
-    df_export = pd.read_sql_query(query_exp, conn, params=params)
-    conn.close()
+    filas = res.fetchall()
+    df_export = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
 
     st.write(f"**{etiqueta_seccion} ({len(df_export)} marcajes registrados)**")
 
