@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
@@ -60,14 +59,22 @@ ESTILOS_MODERNOS = """
         background-color: #334155 !important;
     }
 
-    /* Ocultar fondo blanco en el botón de la barra lateral (Configuración Correo) para integrarlo al color de la barra */
+    /* 1. BOTÓN EN LA BARRA LATERAL DEL MISMO COLOR DE FONDO */
     [data-testid="stSidebar"] div.stButton > button {
         background-color: #1e293b !important;
         border: 1px solid #334155 !important;
+        box-shadow: none !important;
     }
-    [data-testid="stSidebar"] div.stButton > button:hover {
-        background-color: #334155 !important;
+    [data-testid="stSidebar"] div.stButton > button p, 
+    [data-testid="stSidebar"] div.stButton > button span {
+        color: #f1f5f9 !important;
+    }
+    [data-testid="stSidebar"] div.stButton > button:hover,
+    [data-testid="stSidebar"] div.stButton > button:active,
+    [data-testid="stSidebar"] div.stButton > button:focus {
+        background-color: #1e293b !important;
         border-color: #475569 !important;
+        transform: none !important;
     }
 
     /* Tipografía General en Área Principal */
@@ -106,7 +113,7 @@ ESTILOS_MODERNOS = """
         box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
     }
 
-    /* Botones de navegación / grados / acciones (Fondo gris clarito fijo, sin oscurecerse al presionar) */
+    /* 3. BOTONES DE NAVEGACIÓN / GRADOS (Fondo gris clarito fijo, SIN oscurecerse al presionar) */
     div.stButton > button {
         width: 100% !important;
         height: 60px !important;
@@ -122,11 +129,14 @@ ESTILOS_MODERNOS = """
         font-weight: 600 !important;
     }
 
-    div.stButton > button:hover, div.stButton > button:active, div.stButton > button:focus {
+    div.stButton > button:hover, 
+    div.stButton > button:active, 
+    div.stButton > button:focus {
         background-color: #f1f5f9 !important;
         border-color: #cbd5e1 !important;
         color: #0f172a !important;
         transform: none !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
     }
 
     /* Botón seleccionado (Activo) con texto blanco */
@@ -136,22 +146,29 @@ ESTILOS_MODERNOS = """
         box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2) !important;
     }
     
-    div.stButton > button[kind="primary"] p, div.stButton > button[kind="primary"] span {
+    div.stButton > button[kind="primary"] p, 
+    div.stButton > button[kind="primary"] span {
         color: #ffffff !important;
     }
 
-    /* Botón de Guardar Cambios en Formulario (Fondo oscuro, texto blanco forzado) */
+    /* 2. BOTÓN DE GUARDAR CAMBIOS (Fondo oscuro, texto BLANCO forzado) */
     div[data-testid="stForm"] div.stButton > button {
         background-color: #0f172a !important;
         border: 1px solid #0f172a !important;
         height: 50px !important;
     }
-    div[data-testid="stForm"] div.stButton > button p, div[data-testid="stForm"] div.stButton > button span {
+    
+    div[data-testid="stForm"] div.stButton > button p, 
+    div[data-testid="stForm"] div.stButton > button span {
         color: #ffffff !important;
     }
-    div[data-testid="stForm"] div.stButton > button:hover {
+    
+    div[data-testid="stForm"] div.stButton > button:hover,
+    div[data-testid="stForm"] div.stButton > button:active,
+    div[data-testid="stForm"] div.stButton > button:focus {
         background-color: #334155 !important;
         border-color: #334155 !important;
+        color: #ffffff !important;
     }
 
     /* Botón de Descarga Excel / General */
