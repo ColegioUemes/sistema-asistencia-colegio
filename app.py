@@ -18,29 +18,29 @@ st.set_page_config(
 # --- URL BASE ACTIVA ---
 URL_BASE = "https://sistema-asistencia-colegio-zjggkkwftvrnj2w9kkjvrg.streamlit.app"
 
-# --- ESTILOS CSS MODERNOS (TAILWIND SLATE VIBE) ---
+# --- ESTILOS CSS PERSONALIZADOS (MODO CLARO ESTILO IMAGEN) ---
 ESTILOS_MODERNOS = """
 <style>
     /* Import Google Font Inter */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
     .stApp {
-        background-color: #0f172a;
+        background-color: #ffffff !important;
         font-family: 'Inter', sans-serif;
-        color: #f8fafc;
+        color: #0f172a !important;
     }
 
     /* Ocultar elementos innecesarios de Streamlit y personalizar header */
     header[data-testid="stHeader"] {
-        background-color: rgba(15, 23, 42, 0.8) !important;
+        background-color: rgba(255, 255, 255, 0.8) !important;
         backdrop-filter: blur(8px);
-        border-bottom: 1px solid #1e293b;
+        border-bottom: 1px solid #e2e8f0;
     }
 
-    /* Barra lateral estilo Slate Oscuro */
+    /* Barra lateral estilo Azul Oscuro (como en la referencia) */
     [data-testid="stSidebar"] {
         background-color: #1e293b !important;
-        border-right: 1px solid #334155;
+        border-right: 1px solid #cbd5e1;
     }
     
     [data-testid="stSidebar"] * {
@@ -59,86 +59,85 @@ ESTILOS_MODERNOS = """
         background-color: #334155 !important;
     }
 
-    /* Tipografía General */
-    h1 {
-        color: #f8fafc !important;
-        font-weight: 800 !important;
-        letter-spacing: -0.025em;
-    }
-    h2, h3, h4 {
-        color: #38bdf8 !important;
+    /* Tipografía General en Área Principal */
+    h1, h2, h3, h4 {
+        color: #0f172a !important;
         font-weight: 700 !important;
     }
     p, label, span, div {
-        color: #cbd5e1;
+        color: #334155;
     }
 
-    /* Tarjetas de Métricas Modernas (Glassmorphism sutil) */
+    /* Tarjetas de Métricas en Gris Clarito */
     [data-testid="stMetric"] {
-        background-color: #1e293b !important;
-        border: 1px solid #334155 !important;
+        background-color: #f1f5f9 !important;
+        border: 1px solid #cbd5e1 !important;
         padding: 20px;
         border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
     }
     [data-testid="stMetricValue"] {
-        color: #38bdf8 !important;
+        color: #0f172a !important;
         font-weight: 800 !important;
         font-size: 1.8rem !important;
     }
     [data-testid="stMetricLabel"] {
-        color: #94a3b8 !important;
+        color: #64748b !important;
         font-size: 0.9rem !important;
         font-weight: 500 !important;
     }
 
-    /* Contenedores desplegables (Expanders) */
+    /* Contenedores desplegables (Expanders) en Gris Clarito */
     .stExpander {
-        background-color: #1e293b !important;
-        border: 1px solid #334155 !important;
+        background-color: #f1f5f9 !important;
+        border: 1px solid #cbd5e1 !important;
         border-radius: 12px !important;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
     }
 
-    /* Botones de navegación / grados / acciones */
+    /* Botones de navegación / grados / acciones (Fondo gris clarito) */
     div.stButton > button {
         width: 100% !important;
         height: 60px !important;
-        background-color: #1e293b !important;
-        border: 1px solid #334155 !important;
+        background-color: #f1f5f9 !important;
+        border: 1px solid #cbd5e1 !important;
         border-radius: 10px !important;
         transition: all 0.2s ease-in-out;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
     }
 
     div.stButton > button p, div.stButton > button span {
-        color: #f8fafc !important;
+        color: #0f172a !important;
         font-size: 15px !important;
         font-weight: 600 !important;
     }
 
     div.stButton > button:hover {
-        background-color: #334155 !important;
-        border-color: #38bdf8 !important;
+        background-color: #e2e8f0 !important;
+        border-color: #94a3b8 !important;
         transform: translateY(-1px);
     }
 
     /* Botón seleccionado (Activo) */
     div.stButton > button[kind="primary"] {
-        background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
-        border: 1px solid #38bdf8 !important;
-        box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3) !important;
+        background: #0f172a !important;
+        border: 1px solid #0f172a !important;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.2) !important;
+    }
+    
+    div.stButton > button[kind="primary"] p, div.stButton > button[kind="primary"] span {
+        color: #ffffff !important;
     }
 
     /* Botón de Descarga Excel / General */
     div.stDownloadButton > button {
-        background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+        background: #0f172a !important;
         border: none !important;
         border-radius: 10px !important;
         height: 50px !important;
         padding: 0px 24px !important;
         transition: all 0.2s ease-in-out;
-        box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
     }
 
     div.stDownloadButton > button p, div.stDownloadButton > button span {
@@ -148,28 +147,28 @@ ESTILOS_MODERNOS = """
     }
 
     div.stDownloadButton > button:hover {
-        background: linear-gradient(135deg, #047857 0%, #065f46 100%) !important;
+        background: #334155 !important;
         transform: translateY(-1px);
     }
 
     /* DataFrames y Tablas */
     .stDataFrame {
-        background-color: #1e293b;
+        background-color: #f1f5f9;
         border-radius: 12px;
-        border: 1px solid #334155;
+        border: 1px solid #cbd5e1;
         overflow: hidden;
     }
     
     /* Inputs y Formularios */
     .stTextInput input, .stNumberInput input, .stSelectbox select {
-        background-color: #0f172a !important;
-        color: #f8fafc !important;
-        border: 1px solid #334155 !important;
+        background-color: #ffffff !important;
+        color: #0f172a !important;
+        border: 1px solid #cbd5e1 !important;
         border-radius: 8px !important;
     }
     .stTextInput input:focus, .stNumberInput input:focus {
-        border-color: #38bdf8 !important;
-        box-shadow: 0 0 0 1px #38bdf8 !important;
+        border-color: #0f172a !important;
+        box-shadow: 0 0 0 1px #0f172a !important;
     }
 </style>
 """
