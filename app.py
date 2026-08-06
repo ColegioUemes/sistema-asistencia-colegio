@@ -386,6 +386,10 @@ if opcion == "Dashboard & Asistencias":
     columnas = ["Hora", "Registro", "Código ID", "Nombre", "Apellido", "Tipo", "Grado", "Cargo / Función"]
     df_asistencias = pd.DataFrame(filas, columns=columnas) if filas else pd.DataFrame(columns=columnas)
 
+    # Limpiamos espacios en blanco accidentales en la columna Registro
+    if not df_asistencias.empty:
+        df_asistencias['Registro'] = df_asistencias['Registro'].astype(str).str.strip()
+
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total Marcajes Hoy", len(df_asistencias))
