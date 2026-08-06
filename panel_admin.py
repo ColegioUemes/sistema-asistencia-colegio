@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import libsql_experimental as libsql
 
 # Configuración de página
 st.set_page_config(
@@ -153,26 +154,60 @@ ESTILOS_AJUSTADOS = """
 
 st.markdown(ESTILOS_AJUSTADOS, unsafe_allow_html=True)
 
+# --- CONEXIÓN PERSISTENTE A BASE DE DATOS EN LA NUBE (TURSO) ---
 def conectar_bd():
-    conn = sqlite3.connect("colegio.db")
+    try:
+        url = st.secrets["turso"]["url"]
+        auth_token = st.secrets["turso"]["auth_token"]
+        conn = libsql.connect("colegio.db", sync_url=url, auth_token=auth_token)
+        conn.sync()
+    except Exception:
+        conn = sqlite3.connect("colegio.db")
+
     cursor = conn.cursor()
+    
+    # Crear tablas si no existen en la nube
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            codigo_id TEXT PRIMARY KEY,
+            nombre TEXT,
+            apellido TEXT,
+            tipo_persona TEXT,
+            grado_seccion TEXT,
+            funcion_cargo TEXT,
+            email TEXT
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS asistencias (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            codigo_id TEXT,
+            fecha TEXT,
+            hora TEXT,
+            tipo_registro TEXT,
+            UNIQUE(codigo_id, fecha)
+        )
+    ''')
+    
     cursor.execute("PRAGMA table_info(usuarios)")
     columnas = [col[1] for col in cursor.fetchall()]
-    if "email" not in columnas and "usuarios" in [t[0] for t in cursor.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]:
+    if "email" not in columnas:
         cursor.execute("ALTER TABLE usuarios ADD COLUMN email TEXT")
         conn.commit()
+        if hasattr(conn, "sync"):
+            conn.sync()
+            
     return conn
 
-# --- FUNCIÓN DE ENVÍO DE CORREO ELECTRÓNICO CON LECTURA AUTOMÁTICA DE SECRETS ---
+# --- FUNCIÓN DE ENVÍO DE CORREO ELECTRÓNICO ---
 def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grado, fecha, hora):
     try:
-        # Intenta obtener las credenciales directamente de Streamlit Secrets
         smtp_server = st.secrets["smtp"]["server"]
         smtp_port = st.secrets["smtp"]["port"]
         remitente = st.secrets["smtp"]["email"]
         password = st.secrets["smtp"]["password"]
     except Exception:
-        # Respaldo en caso de que se configuren manualmente desde la interfaz
         smtp_server = st.session_state.get("smtp_server", "smtp.gmail.com")
         smtp_port = st.session_state.get("smtp_port", 587)
         remitente = st.session_state.get("smtp_email", "")
@@ -217,7 +252,7 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
     except Exception as e:
         return False, str(e)
 
-# --- LÓGICA DE REGISTRO VÍA URL EN CUALQUIER RED ---
+# --- LÓGICA DE REGISTRO VÍA URL ---
 query_params = st.query_params
 if "id" in query_params:
     codigo_qr = query_params["id"]
@@ -241,6 +276,8 @@ if "id" in query_params:
                 VALUES (?, ?, ?, ?)
             ''', (codigo_qr, fecha_hoy, hora_actual, 'Entrada'))
             conn.commit()
+            if hasattr(conn, "sync"):
+                conn.sync()
             st.success(f"¡Asistencia registrada correctamente! Marcaje para {nombre} {apellido} ({tipo_persona} - {grado}) a las {hora_actual}.")
 
             if email_usuario:
@@ -259,10 +296,11 @@ if "id" in query_params:
             else:
                 st.caption("El usuario no tiene un correo electrónico asociado para notificaciones.")
 
-        except sqlite3.IntegrityError:
-            st.warning(f"⚠️ {nombre} {apellido}, ya registraste tu asistencia para la jornada de hoy.")
-        except Exception as e:
-            st.error(f"Error inesperado al guardar la asistencia: {e}")
+        except (sqlite3.IntegrityError, Exception) as e:
+            if "UNIQUE constraint failed" in str(e) or "IntegrityError" in str(type(e)):
+                st.warning(f"⚠️ {nombre} {apellido}, ya registraste tu asistencia para la jornada de hoy.")
+            else:
+                st.error(f"Error al guardar la asistencia: {e}")
 
     else:
         st.error(f"El código ID '{codigo_qr}' no está registrado en el sistema.")
@@ -420,6 +458,8 @@ elif opcion == "Directorio por Grados":
                         WHERE codigo_id = ?
                     ''', (nuevo_nombre, nuevo_apellido, tipo_persona, grado, cargo, nuevo_email, codigo_sel))
                     conn.commit()
+                    if hasattr(conn, "sync"):
+                        conn.sync()
                     conn.close()
                     st.success(f"¡Datos actualizados para el código {codigo_sel}!")
                     st.rerun()
