@@ -2,6 +2,7 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -213,8 +214,11 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
 query_params = st.query_params
 if "id" in query_params:
     codigo_qr = query_params["id"]
-    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
-    hora_actual = datetime.now().strftime("%H:%M:%S")
+    
+    # Obtener fecha y hora en zona horaria local de Venezuela
+    ahora_ve = datetime.now(ZoneInfo("America/Caracas"))
+    fecha_hoy = ahora_ve.strftime("%Y-%m-%d")
+    hora_actual = ahora_ve.strftime("%H:%M:%S")
 
     conn = conectar_bd()
     cursor = conn.cursor()
@@ -229,9 +233,9 @@ if "id" in query_params:
         # MANEJO SEGURO DE REGISTRO DE ASISTENCIA
         try:
             cursor.execute('''
-                INSERT INTO asistencias (codigo_id, fecha, hora)
-                VALUES (?, ?, ?)
-            ''', (codigo_qr, fecha_hoy, hora_actual))
+                INSERT INTO asistencias (codigo_id, fecha, hora, tipo_registro)
+                VALUES (?, ?, ?, ?)
+            ''', (codigo_qr, fecha_hoy, hora_actual, 'Entrada'))
             conn.commit()
             st.success(f"¡Asistencia registrada correctamente! Marcaje para {nombre} {apellido} ({tipo_persona} - {grado}) a las {hora_actual}.")
 
@@ -293,7 +297,8 @@ if opcion == "Dashboard & Asistencias":
     st.title("Resumen de Asistencia Diaria")
     st.write("Monitoreo en tiempo real de marcajes en la entrada del colegio.")
     
-    fecha_hoy = datetime.now().strftime("%Y-%m-%d")
+    # Usar hora local de Venezuela para filtrar la asistencia diaria
+    fecha_hoy = datetime.now(ZoneInfo("America/Caracas")).strftime("%Y-%m-%d")
     
     conn = conectar_bd()
     query_hoy = '''
@@ -433,7 +438,7 @@ elif opcion == "Exportar Reportes":
 
     col_fecha, _ = st.columns([1, 2])
     with col_fecha:
-        fecha_sel = st.date_input("Seleccionar Fecha", datetime.now())
+        fecha_sel = st.date_input("Seleccionar Fecha", datetime.now(ZoneInfo("America/Caracas")))
 
     st.write("")
 
