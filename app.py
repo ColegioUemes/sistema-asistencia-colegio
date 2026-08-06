@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
@@ -18,7 +19,7 @@ st.set_page_config(
 # --- URL BASE ACTIVA ---
 URL_BASE = "https://sistema-asistencia-colegio-zjggkkwftvrnj2w9kkjvrg.streamlit.app"
 
-# --- ESTILOS CSS PERSONALIZADOS (MODO CLARO ESTILO IMAGEN) ---
+# --- ESTILOS CSS PERSONALIZADOS (CORRECCIÓN DE ELEMENTOS SOLICITADOS) ---
 ESTILOS_MODERNOS = """
 <style>
     /* Import Google Font Inter */
@@ -37,7 +38,7 @@ ESTILOS_MODERNOS = """
         border-bottom: 1px solid #e2e8f0;
     }
 
-    /* Barra lateral estilo Azul Oscuro (como en la referencia) */
+    /* Barra lateral estilo Azul Oscuro */
     [data-testid="stSidebar"] {
         background-color: #1e293b !important;
         border-right: 1px solid #cbd5e1;
@@ -57,6 +58,16 @@ ESTILOS_MODERNOS = """
     
     [data-testid="stSidebar"] .stRadio label:hover {
         background-color: #334155 !important;
+    }
+
+    /* Ocultar fondo blanco en el botón de la barra lateral (Configuración Correo) para integrarlo al color de la barra */
+    [data-testid="stSidebar"] div.stButton > button {
+        background-color: #1e293b !important;
+        border: 1px solid #334155 !important;
+    }
+    [data-testid="stSidebar"] div.stButton > button:hover {
+        background-color: #334155 !important;
+        border-color: #475569 !important;
     }
 
     /* Tipografía General en Área Principal */
@@ -95,14 +106,13 @@ ESTILOS_MODERNOS = """
         box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
     }
 
-    /* Botones de navegación / grados / acciones (Fondo gris clarito) */
+    /* Botones de navegación / grados / acciones (Fondo gris clarito fijo, sin oscurecerse al presionar) */
     div.stButton > button {
         width: 100% !important;
         height: 60px !important;
         background-color: #f1f5f9 !important;
         border: 1px solid #cbd5e1 !important;
         border-radius: 10px !important;
-        transition: all 0.2s ease-in-out;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
     }
 
@@ -112,13 +122,14 @@ ESTILOS_MODERNOS = """
         font-weight: 600 !important;
     }
 
-    div.stButton > button:hover {
-        background-color: #e2e8f0 !important;
-        border-color: #94a3b8 !important;
-        transform: translateY(-1px);
+    div.stButton > button:hover, div.stButton > button:active, div.stButton > button:focus {
+        background-color: #f1f5f9 !important;
+        border-color: #cbd5e1 !important;
+        color: #0f172a !important;
+        transform: none !important;
     }
 
-    /* Botón seleccionado (Activo) */
+    /* Botón seleccionado (Activo) con texto blanco */
     div.stButton > button[kind="primary"] {
         background: #0f172a !important;
         border: 1px solid #0f172a !important;
@@ -127,6 +138,20 @@ ESTILOS_MODERNOS = """
     
     div.stButton > button[kind="primary"] p, div.stButton > button[kind="primary"] span {
         color: #ffffff !important;
+    }
+
+    /* Botón de Guardar Cambios en Formulario (Fondo oscuro, texto blanco forzado) */
+    div[data-testid="stForm"] div.stButton > button {
+        background-color: #0f172a !important;
+        border: 1px solid #0f172a !important;
+        height: 50px !important;
+    }
+    div[data-testid="stForm"] div.stButton > button p, div[data-testid="stForm"] div.stButton > button span {
+        color: #ffffff !important;
+    }
+    div[data-testid="stForm"] div.stButton > button:hover {
+        background-color: #334155 !important;
+        border-color: #334155 !important;
     }
 
     /* Botón de Descarga Excel / General */
