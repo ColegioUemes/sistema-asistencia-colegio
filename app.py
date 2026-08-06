@@ -11,7 +11,6 @@ import libsql_client as libsql
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
     page_title="Sistema de Asistencia Escolar",
-    page_icon="🏫",
     layout="wide",
     initial_sidebar_state="expanded"
 )
