@@ -166,6 +166,12 @@ def conectar_bd():
     except Exception:
         return sqlite3.connect("colegio.db")
 
+def consultar_sql(db, consulta, parametros=()):
+    res = db.execute(consulta, parametros)
+    if hasattr(res, 'rows'):
+        return res.rows
+    return res.fetchall()
+
 def inicializar_tablas():
     try:
         db = conectar_bd()
@@ -257,8 +263,8 @@ if "id" in query_params:
     hora_actual = ahora_ve.strftime("%H:%M:%S")
 
     db = conectar_bd()
-    res = db.execute("SELECT nombre, apellido, tipo_persona, grado_seccion, email FROM usuarios WHERE codigo_id = ?", (codigo_qr,))
-    usuario = res.fetchone()
+    filas_usr = consultar_sql(db, "SELECT nombre, apellido, tipo_persona, grado_seccion, email FROM usuarios WHERE codigo_id = ?", (codigo_qr,))
+    usuario = filas_usr[0] if filas_usr else None
 
     if usuario:
         nombre, apellido, tipo_persona, grado, email_usuario = usuario[0], usuario[1], usuario[2], usuario[3], usuario[4]
@@ -330,7 +336,7 @@ if opcion == "Dashboard & Asistencias":
     fecha_hoy = datetime.now(ZoneInfo("America/Caracas")).strftime("%Y-%m-%d")
     
     db = conectar_bd()
-    res = db.execute('''
+    filas = consultar_sql(db, '''
         SELECT a.hora, a.codigo_id, u.nombre, u.apellido, u.tipo_persona, u.grado_seccion, u.funcion_cargo 
         FROM asistencias a
         JOIN usuarios u ON a.codigo_id = u.codigo_id
@@ -338,7 +344,6 @@ if opcion == "Dashboard & Asistencias":
         ORDER BY a.hora DESC
     ''', (fecha_hoy,))
     
-    filas = res.fetchall()
     columnas = ["Hora", "Código ID", "Nombre", "Apellido", "Tipo", "Grado", "Cargo / Función"]
     df_asistencias = pd.DataFrame(filas, columns=columnas) if filas else pd.DataFrame(columns=columnas)
 
@@ -402,8 +407,7 @@ elif opcion == "Directorio por Grados":
 
     cat_activa = st.session_state["grado_seleccionado"]
     db = conectar_bd()
-    res = db.execute("SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios")
-    filas = res.fetchall()
+    filas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios")
     cols = ["codigo_id", "nombre", "apellido", "tipo_persona", "grado_seccion", "funcion_cargo", "email"]
     df_usuarios = pd.DataFrame(filas, columns=cols) if filas else pd.DataFrame(columns=cols)
 
@@ -469,7 +473,7 @@ elif opcion == "Exportar Reportes":
     st.write("")
 
     db = conectar_bd()
-    res = db.execute('''
+    filas = consultar_sql(db, '''
         SELECT a.fecha as Fecha, a.hora as Hora, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
                u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo 
         FROM asistencias a
@@ -478,7 +482,6 @@ elif opcion == "Exportar Reportes":
         ORDER BY a.hora ASC
     ''', (fecha_sel.strftime("%Y-%m-%d"),))
     
-    filas = res.fetchall()
     cols_exp = ["Fecha", "Hora", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]
     df_global = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
 
@@ -535,7 +538,7 @@ elif opcion == "Exportar Reportes":
 
     db = conectar_bd()
     if cat_rep_activa == "Personal":
-        res = db.execute('''
+        filas = consultar_sql(db, '''
             SELECT a.fecha as Fecha, a.hora as Hora, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
                    u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo 
             FROM asistencias a
@@ -546,7 +549,7 @@ elif opcion == "Exportar Reportes":
         nombre_archivo = f"asistencia_Personal_{fecha_sel.strftime('%Y-%m-%d')}.csv"
         etiqueta_seccion = "Reporte de Asistencia: Personal"
     else:
-        res = db.execute('''
+        filas = consultar_sql(db, '''
             SELECT a.fecha as Fecha, a.hora as Hora, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
                    u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo 
             FROM asistencias a
@@ -557,7 +560,6 @@ elif opcion == "Exportar Reportes":
         nombre_archivo = f"asistencia_{cat_rep_activa}_{fecha_sel.strftime('%Y-%m-%d')}.csv"
         etiqueta_seccion = f"Reporte de Asistencia: Grado {cat_rep_activa}"
 
-    filas = res.fetchall()
     df_export = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
 
     st.write(f"**{etiqueta_seccion} ({len(df_export)} marcajes registrados)**")
