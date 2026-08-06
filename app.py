@@ -196,7 +196,7 @@ def inicializar_tablas():
                 fecha TEXT,
                 hora TEXT,
                 tipo_registro TEXT,
-                UNIQUE(codigo_id, fecha)
+                UNIQUE(codigo_id, fecha, tipo_registro)
             )
         ''')
     except Exception:
@@ -205,7 +205,7 @@ def inicializar_tablas():
 inicializar_tablas()
 
 # --- FUNCIÓN DE ENVÍO DE CORREO ELECTRÓNICO ---
-def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grado, fecha, hora):
+def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grado, fecha, hora, tipo_registro):
     try:
         smtp_server = st.secrets["smtp"]["server"]
         smtp_port = st.secrets["smtp"]["port"]
@@ -222,15 +222,18 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
 
     try:
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"Notificación de Asistencia Escolar - {nombre_completo}"
+        msg["Subject"] = f"Notificación de Asistencia Escolar ({tipo_registro}) - {nombre_completo}"
         msg["From"] = remitente
         msg["To"] = destinatario
+
+        titulo_correo = f"Confirmación de {tipo_registro} Escolar"
+        etiqueta_hora = f"Hora de {tipo_registro}"
 
         cuerpo_html = f"""
         <html>
           <body style="font-family: Arial, sans-serif; color: #1e293b;">
             <div style="max-width: 600px; margin: 0 auto; border: 1px solid #b3cde0; border-radius: 10px; padding: 20px; background-color: #f8fafc;">
-              <h2 style="color: #00338D; border-bottom: 2px solid #00338D; padding-bottom: 8px;">Confirmación de Entrada Escolar</h2>
+              <h2 style="color: #00338D; border-bottom: 2px solid #00338D; padding-bottom: 8px;">{titulo_correo}</h2>
               <p>Estimado/a representante o usuario,</p>
               <p>Se ha registrado un marcaje de asistencia con los siguientes detalles:</p>
               <ul style="line-height: 1.8;">
@@ -238,7 +241,7 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
                 <li><strong>Rol / Tipo:</strong> {tipo_persona}</li>
                 <li><strong>Grado / Sección:</strong> {grado}</li>
                 <li><strong>Fecha:</strong> {fecha}</li>
-                <li><strong>Hora de Entrada:</strong> {hora}</li>
+                <li><strong>{etiqueta_hora}:</strong> {hora}</li>
               </ul>
               <p style="font-size: 12px; color: #64748b; margin-top: 20px;">Este es un mensaje automático enviado por el Sistema de Asistencia Escolar.</p>
             </div>
@@ -256,7 +259,7 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
     except Exception as e:
         return False, str(e)
 
-# --- LÓGICA DE REGISTRO VÍA URL ---
+# --- LÓGICA DE REGISTRO VÍA URL (ENTRADA / SALIDA) ---
 query_params = st.query_params
 if "id" in query_params:
     codigo_qr = query_params["id"]
@@ -272,34 +275,53 @@ if "id" in query_params:
     if usuario:
         nombre, apellido, tipo_persona, grado, email_usuario = usuario[0], usuario[1], usuario[2], usuario[3], usuario[4]
         
-        try:
-            db.execute('''
-                INSERT INTO asistencias (codigo_id, fecha, hora, tipo_registro)
-                VALUES (?, ?, ?, ?)
-            ''', (codigo_qr, fecha_hoy, hora_actual, 'Entrada'))
-            st.success(f"¡Asistencia registrada correctamente! Marcaje para {nombre} {apellido} ({tipo_persona} - {grado}) a las {hora_actual}.")
+        # Verificar registros de hoy para este usuario
+        registros_hoy = consultar_sql(
+            db, 
+            "SELECT tipo_registro FROM asistencias WHERE codigo_id = ? AND fecha = ?", 
+            (codigo_qr, fecha_hoy)
+        )
+        
+        tipos_registrados = [r[0] for r in registros_hoy] if registros_hoy else []
 
-            if email_usuario:
-                exito, msg = enviar_correo_confirmacion(
-                    destinatario=email_usuario,
-                    nombre_completo=f"{nombre} {apellido}",
-                    tipo_persona=tipo_persona,
-                    grado=grado,
-                    fecha=fecha_hoy,
-                    hora=hora_actual
-                )
-                if exito:
-                    st.info(f"📧 Se ha enviado una notificación por correo electrónico a: {email_usuario}")
+        # Determinar si corresponde Entrada o Salida
+        if "Entrada" not in tipos_registrados:
+            tipo_movimiento = "Entrada"
+        elif "Salida" not in tipos_registrados:
+            tipo_movimiento = "Salida"
+        else:
+            tipo_movimiento = None
+
+        if tipo_movimiento:
+            try:
+                db.execute('''
+                    INSERT INTO asistencias (codigo_id, fecha, hora, tipo_registro)
+                    VALUES (?, ?, ?, ?)
+                ''', (codigo_qr, fecha_hoy, hora_actual, tipo_movimiento))
+
+                st.success(f"¡{tipo_movimiento} registrada correctamente! Marcaje para {nombre} {apellido} ({tipo_persona} - {grado}) a las {hora_actual}.")
+
+                if email_usuario:
+                    exito, msg = enviar_correo_confirmacion(
+                        destinatario=email_usuario,
+                        nombre_completo=f"{nombre} {apellido}",
+                        tipo_persona=tipo_persona,
+                        grado=grado,
+                        fecha=fecha_hoy,
+                        hora=hora_actual,
+                        tipo_registro=tipo_movimiento
+                    )
+                    if exito:
+                        st.info(f"📧 Se ha enviado una notificación de {tipo_movimiento.lower()} por correo a: {email_usuario}")
+                    else:
+                        st.warning(f"{tipo_movimiento} registrada, pero no se pudo enviar el correo ({msg}).")
                 else:
-                    st.warning(f"Asistencia registrada, pero no se pudo enviar el correo ({msg}).")
-            else:
-                st.caption("El usuario no tiene un correo electrónico asociado para notificaciones.")
+                    st.caption("El usuario no tiene un correo electrónico asociado para notificaciones.")
 
-        except Exception as e:
-            if "UNIQUE" in str(e) or "IntegrityError" in str(e):
-                st.warning(f"⚠️ {nombre} {apellido}, ya registraste tu asistencia para la jornada de hoy.")
-            else:
+            except Exception as e:
                 st.error(f"Error al guardar la asistencia: {e}")
+        else:
+            st.warning(f"⚠️ {nombre} {apellido}, ya registraste tanto tu ENTRADA como tu SALIDA para la jornada de hoy.")
 
     else:
         st.error(f"El código ID '{codigo_qr}' no está registrado en el sistema.")
@@ -334,34 +356,34 @@ with st.sidebar:
 # --- SECCIÓN 1: DASHBOARD & ASISTENCIAS ---
 if opcion == "Dashboard & Asistencias":
     st.title("Resumen de Asistencia Diaria")
-    st.write("Monitoreo en tiempo real de marcajes en la entrada del colegio.")
+    st.write("Monitoreo en tiempo real de entradas y salidas en el colegio.")
     
     fecha_hoy = datetime.now(ZoneInfo("America/Caracas")).strftime("%Y-%m-%d")
     
     db = conectar_bd()
     filas = consultar_sql(db, '''
-        SELECT a.hora, a.codigo_id, u.nombre, u.apellido, u.tipo_persona, u.grado_seccion, u.funcion_cargo 
+        SELECT a.hora, a.tipo_registro, a.codigo_id, u.nombre, u.apellido, u.tipo_persona, u.grado_seccion, u.funcion_cargo 
         FROM asistencias a
         JOIN usuarios u ON a.codigo_id = u.codigo_id
         WHERE a.fecha = ?
         ORDER BY a.hora DESC
     ''', (fecha_hoy,))
     
-    columnas = ["Hora", "Código ID", "Nombre", "Apellido", "Tipo", "Grado", "Cargo / Función"]
+    columnas = ["Hora", "Registro", "Código ID", "Nombre", "Apellido", "Tipo", "Grado", "Cargo / Función"]
     df_asistencias = pd.DataFrame(filas, columns=columnas) if filas else pd.DataFrame(columns=columnas)
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total Registrados Hoy", len(df_asistencias))
+        st.metric("Total Marcajes Hoy", len(df_asistencias))
     with col2:
-        alumnos_hoy = len(df_asistencias[df_asistencias['Tipo'] == 'Estudiante']) if not df_asistencias.empty else 0
-        st.metric("Estudiantes Presentes", alumnos_hoy)
+        entradas_hoy = len(df_asistencias[df_asistencias['Registro'] == 'Entrada']) if not df_asistencias.empty else 0
+        st.metric("Total Entradas", entradas_hoy)
     with col3:
-        personal_hoy = len(df_asistencias[df_asistencias['Tipo'] == 'Personal']) if not df_asistencias.empty else 0
-        st.metric("Personal Presente", personal_hoy)
+        salidas_hoy = len(df_asistencias[df_asistencias['Registro'] == 'Salida']) if not df_asistencias.empty else 0
+        st.metric("Total Salidas", salidas_hoy)
 
     st.markdown("---")
-    st.subheader("Últimas Entradas Marcadas Hoy")
+    st.subheader("Últimos Movimientos Marcados Hoy")
     
     if not df_asistencias.empty:
         st.dataframe(df_asistencias, use_container_width=True, hide_index=True)
@@ -477,7 +499,7 @@ elif opcion == "Exportar Reportes":
 
     db = conectar_bd()
     filas = consultar_sql(db, '''
-        SELECT a.fecha as Fecha, a.hora as Hora, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
+        SELECT a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
                u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo 
         FROM asistencias a
         JOIN usuarios u ON a.codigo_id = u.codigo_id
@@ -485,7 +507,7 @@ elif opcion == "Exportar Reportes":
         ORDER BY a.hora ASC
     ''', (fecha_sel.strftime("%Y-%m-%d"),))
     
-    cols_exp = ["Fecha", "Hora", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]
+    cols_exp = ["Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]
     df_global = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
 
     if not df_global.empty:
@@ -542,7 +564,7 @@ elif opcion == "Exportar Reportes":
     db = conectar_bd()
     if cat_rep_activa == "Personal":
         filas = consultar_sql(db, '''
-            SELECT a.fecha as Fecha, a.hora as Hora, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
+            SELECT a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
                    u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo 
             FROM asistencias a
             JOIN usuarios u ON a.codigo_id = u.codigo_id
@@ -553,7 +575,7 @@ elif opcion == "Exportar Reportes":
         etiqueta_seccion = "Reporte de Asistencia: Personal"
     else:
         filas = consultar_sql(db, '''
-            SELECT a.fecha as Fecha, a.hora as Hora, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
+            SELECT a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
                    u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo 
             FROM asistencias a
             JOIN usuarios u ON a.codigo_id = u.codigo_id
