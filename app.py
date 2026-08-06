@@ -18,7 +18,7 @@ st.set_page_config(
 # --- URL BASE ACTIVA ---
 URL_BASE = "https://sistema-asistencia-colegio-zjggkkwftvrnj2w9kkjvrg.streamlit.app"
 
-# --- ESTILOS CSS PERSONALIZADOS (CORRECCIÓN DE ELEMENTOS SOLICITADOS) ---
+# --- ESTILOS CSS PERSONALIZADOS (CORRECCIÓN DE ICONOS SUPERIORES) ---
 ESTILOS_MODERNOS = """
 <style>
     /* Import Google Font Inter */
@@ -35,6 +35,25 @@ ESTILOS_MODERNOS = """
         background-color: rgba(255, 255, 255, 0.8) !important;
         backdrop-filter: blur(8px);
         border-bottom: 1px solid #e2e8f0;
+    }
+
+    /* CORRECCIÓN: Botones e iconos en la barra superior de Streamlit (entre 'Share' y los tres puntos) forzados a color gris */
+    header[data-testid="stHeader"] button,
+    header[data-testid="stHeader"] [data-testid="baseButton-header"],
+    header[data-testid="stHeader"] svg {
+        color: #475569 !important;
+        fill: #475569 !important;
+    }
+    
+    header[data-testid="stHeader"] button:hover,
+    header[data-testid="stHeader"] [data-testid="baseButton-header"]:hover {
+        background-color: #f1f5f9 !important;
+        color: #0f172a !important;
+    }
+    
+    header[data-testid="stHeader"] button:hover svg,
+    header[data-testid="stHeader"] [data-testid="baseButton-header"]:hover svg {
+        fill: #0f172a !important;
     }
 
     /* Barra lateral estilo Azul Oscuro */
@@ -59,7 +78,7 @@ ESTILOS_MODERNOS = """
         background-color: #334155 !important;
     }
 
-    /* CORRECCIÓN 1: Botones dentro de la barra lateral (Configuración de Correo / Expanders) con fondo gris oscuro idéntico a la barra */
+    /* Botones dentro de la barra lateral (Configuración de Correo / Expanders) con fondo gris oscuro idéntico a la barra */
     [data-testid="stSidebar"] div.stButton > button,
     [data-testid="stSidebar"] [data-testid="stExpander"] {
         background-color: #1e293b !important;
@@ -78,19 +97,6 @@ ESTILOS_MODERNOS = """
         background-color: #1e293b !important;
         border-color: #475569 !important;
         transform: none !important;
-    }
-
-    /* CORRECCIÓN 2: Botones superiores al lado del menú (Grados / Pestañas de Navegación Superior) forzados a gris clarito */
-    div.stHorizontalBlock div.stButton > button,
-    div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"] div.stButton > button {
-        background-color: #f1f5f9 !important;
-        border: 1px solid #cbd5e1 !important;
-        color: #0f172a !important;
-    }
-    
-    div.stHorizontalBlock div.stButton > button p, 
-    div.stHorizontalBlock div.stButton > button span {
-        color: #0f172a !important;
     }
 
     /* Tipografía General en Área Principal */
@@ -672,7 +678,7 @@ elif opcion == "Exportar Reportes":
             WHERE a.fecha = ? AND u.grado_seccion = ?
             ORDER BY a.hora ASC
         ''', (fecha_sel.strftime("%Y-%m-%d"), cat_rep_activa))
-        nombre_archivo = f"asistencia_{cat_rep__activa if 'cat_rep_activa' in locals() else cat_rep_activa}_{fecha_sel.strftime('%Y-%m-%d')}.csv"
+        nombre_archivo = f"asistencia_{cat_rep_activa}_{fecha_sel.strftime('%Y-%m-%d')}.csv"
         etiqueta_seccion = f"Reporte de Asistencia: Grado {cat_rep_activa}"
 
     df_export = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
@@ -687,7 +693,7 @@ elif opcion == "Exportar Reportes":
             label=f"Descargar Reporte ({cat_rep_activa}) en Excel (CSV)",
             data=csv,
             file_name=nombre_archivo,
-            mime="text/csv"
+            mime="text/css" if False else "text/csv"
         )
     else:
         st.info(f"No hay marcajes de asistencia registrados para {cat_rep_activa} en la fecha {fecha_sel.strftime('%Y-%m-%d')}.")
