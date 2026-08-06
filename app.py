@@ -11,6 +11,7 @@ import libsql_client as libsql
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
     page_title="Sistema de Asistencia Escolar",
+    page_icon="🏫",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -18,144 +19,163 @@ st.set_page_config(
 # --- URL BASE ACTIVA ---
 URL_BASE = "https://sistema-asistencia-colegio-zjggkkwftvrnj2w9kkjvrg.streamlit.app"
 
-# Estilos CSS
-ESTILOS_AJUSTADOS = """
+# --- ESTILOS CSS MODERNOS (TAILWIND SLATE VIBE) ---
+ESTILOS_MODERNOS = """
 <style>
-    /* Fondo principal */
+    /* Import Google Font Inter */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
     .stApp {
-        background-color: #f8fafc;
-        font-family: 'Segoe UI', Arial, sans-serif;
+        background-color: #0f172a;
+        font-family: 'Inter', sans-serif;
+        color: #f8fafc;
     }
 
-    /* Barra superior (Header) en #E6F0FA */
+    /* Ocultar elementos innecesarios de Streamlit y personalizar header */
     header[data-testid="stHeader"] {
-        background-color: #E6F0FA !important;
+        background-color: rgba(15, 23, 42, 0.8) !important;
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid #1e293b;
     }
 
-    /* Estilo del botón Deploy en la barra superior */
-    header[data-testid="stHeader"] button {
-        color: #00338D !important;
-        font-weight: 700 !important;
-    }
-
-    /* Traducir texto visual de Deploy a Desplegar */
-    header[data-testid="stHeader"] [data-testid="stHeaderActionElements"] button p {
-        font-size: 0px !important;
-    }
-    header[data-testid="stHeader"] [data-testid="stHeaderActionElements"] button p::before {
-        content: "Desplegar" !important;
-        font-size: 14px !important;
-        color: #00338D !important;
-        font-weight: 700 !important;
+    /* Barra lateral estilo Slate Oscuro */
+    [data-testid="stSidebar"] {
+        background-color: #1e293b !important;
+        border-right: 1px solid #334155;
     }
     
-    /* Barra lateral azul marino */
-    [data-testid="stSidebar"] {
-        background-color: #00338D !important;
-    }
     [data-testid="stSidebar"] * {
-        color: #ffffff !important;
-    }
-    [data-testid="stSidebar"] .stRadio label {
-        font-size: 16px !important;
-        font-weight: 500;
-        padding: 8px;
+        color: #f1f5f9 !important;
     }
 
-    /* Títulos principales */
+    [data-testid="stSidebar"] .stRadio label {
+        font-size: 15px !important;
+        font-weight: 500;
+        padding: 6px 10px;
+        border-radius: 6px;
+        transition: background 0.2s;
+    }
+    
+    [data-testid="stSidebar"] .stRadio label:hover {
+        background-color: #334155 !important;
+    }
+
+    /* Tipografía General */
     h1 {
-        color: #0f172a !important;
+        color: #f8fafc !important;
         font-weight: 800 !important;
+        letter-spacing: -0.025em;
     }
     h2, h3, h4 {
-        color: #00338D !important;
+        color: #38bdf8 !important;
         font-weight: 700 !important;
     }
     p, label, span, div {
-        color: #1e293b !important;
+        color: #cbd5e1;
     }
 
-    /* Tarjetas de métricas */
+    /* Tarjetas de Métricas Modernas (Glassmorphism sutil) */
     [data-testid="stMetric"] {
-        background-color: #E6F0FA !important;
-        border: 1px solid #b3cde0 !important;
-        padding: 16px 20px;
-        border-radius: 10px;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+        background-color: #1e293b !important;
+        border: 1px solid #334155 !important;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     }
     [data-testid="stMetricValue"] {
-        color: #00338D !important;
+        color: #38bdf8 !important;
         font-weight: 800 !important;
+        font-size: 1.8rem !important;
+    }
+    [data-testid="stMetricLabel"] {
+        color: #94a3b8 !important;
+        font-size: 0.9rem !important;
+        font-weight: 500 !important;
     }
 
-    /* Contenedores desplegables */
-    .st-emotion-cache-1h9usn1, .stExpander {
-        background-color: #E6F0FA !important;
-        border: 1px solid #b3cde0 !important;
-        border-radius: 8px !important;
+    /* Contenedores desplegables (Expanders) */
+    .stExpander {
+        background-color: #1e293b !important;
+        border: 1px solid #334155 !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
-    
-    /* Botones de grados */
+
+    /* Botones de navegación / grados / acciones */
     div.stButton > button {
         width: 100% !important;
-        height: 80px !important;
-        background-color: #00338D !important;
-        border: none !important;
+        height: 60px !important;
+        background-color: #1e293b !important;
+        border: 1px solid #334155 !important;
         border-radius: 10px !important;
         transition: all 0.2s ease-in-out;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-    }
-    
-    /* Texto blanco para botones estándar */
-    div.stButton > button p, div.stButton > button span {
-        color: #ffffff !important;
-        font-size: 18px !important;
-        font-weight: 700 !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05) !important;
     }
 
-    /* Botón de Descarga Excel (st.download_button) */
+    div.stButton > button p, div.stButton > button span {
+        color: #f8fafc !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
+    }
+
+    div.stButton > button:hover {
+        background-color: #334155 !important;
+        border-color: #38bdf8 !important;
+        transform: translateY(-1px);
+    }
+
+    /* Botón seleccionado (Activo) */
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
+        border: 1px solid #38bdf8 !important;
+        box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3) !important;
+    }
+
+    /* Botón de Descarga Excel / General */
     div.stDownloadButton > button {
-        background-color: #00338D !important;
+        background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
         border: none !important;
-        border-radius: 8px !important;
+        border-radius: 10px !important;
         height: 50px !important;
         padding: 0px 24px !important;
         transition: all 0.2s ease-in-out;
+        box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
     }
 
     div.stDownloadButton > button p, div.stDownloadButton > button span {
         color: #ffffff !important;
-        font-size: 16px !important;
-        font-weight: 700 !important;
+        font-size: 15px !important;
+        font-weight: 600 !important;
     }
 
     div.stDownloadButton > button:hover {
-        background-color: #002266 !important;
+        background: linear-gradient(135deg, #047857 0%, #065f46 100%) !important;
+        transform: translateY(-1px);
+    }
+
+    /* DataFrames y Tablas */
+    .stDataFrame {
+        background-color: #1e293b;
+        border-radius: 12px;
+        border: 1px solid #334155;
+        overflow: hidden;
     }
     
-    /* Hover en botones */
-    div.stButton > button:hover {
-        background-color: #002266 !important;
-        transform: translateY(-2px);
+    /* Inputs y Formularios */
+    .stTextInput input, .stNumberInput input, .stSelectbox select {
+        background-color: #0f172a !important;
+        color: #f8fafc !important;
+        border: 1px solid #334155 !important;
+        border-radius: 8px !important;
     }
-
-    /* Botón seleccionado (Azul más oscuro) */
-    div.stButton > button[kind="primary"] {
-        background-color: #001F54 !important;
-        border: 2px solid #00338D !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
-    }
-
-    /* Tablas */
-    .stDataFrame {
-        background-color: #ffffff;
-        border-radius: 8px;
-        border: 1px solid #cbd5e1;
+    .stTextInput input:focus, .stNumberInput input:focus {
+        border-color: #38bdf8 !important;
+        box-shadow: 0 0 0 1px #38bdf8 !important;
     }
 </style>
 """
 
-st.markdown(ESTILOS_AJUSTADOS, unsafe_allow_html=True)
+st.markdown(ESTILOS_MODERNOS, unsafe_allow_html=True)
 
 # --- CONEXIÓN Y CONSULTAS A BASE DE DATOS (TURSO / SQLITE) ---
 def conectar_bd():
@@ -178,7 +198,6 @@ def consultar_sql(db, consulta, parametros=()):
     return []
 
 def ejecutar_sql(db, consulta, parametros=()):
-    """Ejecuta INSERT, UPDATE o DELETE de forma segura en Turso o SQLite"""
     try:
         db.execute(consulta, parametros)
     except Exception as e:
@@ -241,19 +260,19 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
 
         cuerpo_html = f"""
         <html>
-          <body style="font-family: Arial, sans-serif; color: #1e293b;">
-            <div style="max-width: 600px; margin: 0 auto; border: 1px solid #b3cde0; border-radius: 10px; padding: 20px; background-color: #f8fafc;">
-              <h2 style="color: #00338D; border-bottom: 2px solid #00338D; padding-bottom: 8px;">{titulo_correo}</h2>
-              <p>Estimado/a representante o usuario,</p>
-              <p>Se ha registrado un marcaje de asistencia con los siguientes detalles:</p>
-              <ul style="line-height: 1.8;">
+          <body style="font-family: 'Inter', Arial, sans-serif; color: #1e293b; background-color: #f1f5f9; padding: 20px;">
+            <div style="max-width: 600px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+              <h2 style="color: #0284c7; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-top: 0;">{titulo_correo}</h2>
+              <p style="color: #475569;">Estimado/a representante o usuario,</p>
+              <p style="color: #475569;">Se ha registrado un marcaje de asistencia con los siguientes detalles:</p>
+              <ul style="line-height: 1.8; color: #334155;">
                 <li><strong>Nombre:</strong> {nombre_completo}</li>
                 <li><strong>Rol / Tipo:</strong> {tipo_persona}</li>
                 <li><strong>Grado / Sección:</strong> {grado}</li>
                 <li><strong>Fecha:</strong> {fecha}</li>
                 <li><strong>{etiqueta_hora}:</strong> {hora}</li>
               </ul>
-              <p style="font-size: 12px; color: #64748b; margin-top: 20px;">Este es un mensaje automático enviado por el Sistema de Asistencia Escolar.</p>
+              <p style="font-size: 12px; color: #94a3b8; margin-top: 24px; border-top: 1px solid #f1f5f9; pt-2">Este es un mensaje automático enviado por el Sistema de Asistencia Escolar.</p>
             </div>
           </body>
         </html>
@@ -285,7 +304,6 @@ if "id" in query_params:
     if usuario:
         nombre, apellido, tipo_persona, grado, email_usuario = usuario[0], usuario[1], usuario[2], usuario[3], usuario[4]
         
-        # Verificar registros de hoy para este usuario
         registros_hoy = consultar_sql(
             db, 
             "SELECT tipo_registro FROM asistencias WHERE codigo_id = ? AND fecha = ?", 
@@ -294,7 +312,6 @@ if "id" in query_params:
         
         tipos_registrados = [r[0] for r in registros_hoy] if registros_hoy else []
 
-        # Determinar si corresponde Entrada o Salida
         if "Entrada" not in tipos_registrados:
             tipo_movimiento = "Entrada"
         elif "Salida" not in tipos_registrados:
@@ -351,7 +368,7 @@ if "reporte_grado_sel" not in st.session_state:
 
 # --- BARRA LATERAL ---
 with st.sidebar:
-    st.title("Control Escolar")
+    st.title("🏫 Control Escolar")
     st.markdown("---")
     
     opcion = st.radio(
@@ -361,7 +378,7 @@ with st.sidebar:
 
     st.markdown("---")
     with st.expander("⚙️ Configuración Correo (SMTP)"):
-        st.caption("Ajustes para envío automático de correos:")
+        st.caption("Ajustes para envío automático:")
         st.session_state["smtp_server"] = st.text_input("Servidor SMTP", value=st.session_state.get("smtp_server", "smtp.gmail.com"))
         st.session_state["smtp_port"] = st.number_input("Puerto", value=st.session_state.get("smtp_port", 587))
         st.session_state["smtp_email"] = st.text_input("Correo Emisor", value=st.session_state.get("smtp_email", ""))
@@ -386,7 +403,6 @@ if opcion == "Dashboard & Asistencias":
     columnas = ["Hora", "Registro", "Código ID", "Nombre", "Apellido", "Tipo", "Grado", "Cargo / Función"]
     df_asistencias = pd.DataFrame(filas, columns=columnas) if filas else pd.DataFrame(columns=columnas)
 
-    # Limpiamos espacios en blanco accidentales en la columna Registro
     if not df_asistencias.empty:
         df_asistencias['Registro'] = df_asistencias['Registro'].astype(str).str.strip()
 
