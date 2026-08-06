@@ -59,22 +59,38 @@ ESTILOS_MODERNOS = """
         background-color: #334155 !important;
     }
 
-    /* 1. BOTÓN EN LA BARRA LATERAL DEL MISMO COLOR DE FONDO */
-    [data-testid="stSidebar"] div.stButton > button {
+    /* CORRECCIÓN 1: Botones dentro de la barra lateral (Configuración de Correo / Expanders) con fondo gris oscuro idéntico a la barra */
+    [data-testid="stSidebar"] div.stButton > button,
+    [data-testid="stSidebar"] [data-testid="stExpander"] {
         background-color: #1e293b !important;
         border: 1px solid #334155 !important;
         box-shadow: none !important;
     }
+    
     [data-testid="stSidebar"] div.stButton > button p, 
     [data-testid="stSidebar"] div.stButton > button span {
         color: #f1f5f9 !important;
     }
+    
     [data-testid="stSidebar"] div.stButton > button:hover,
     [data-testid="stSidebar"] div.stButton > button:active,
     [data-testid="stSidebar"] div.stButton > button:focus {
         background-color: #1e293b !important;
         border-color: #475569 !important;
         transform: none !important;
+    }
+
+    /* CORRECCIÓN 2: Botones superiores al lado del menú (Grados / Pestañas de Navegación Superior) forzados a gris clarito */
+    div.stHorizontalBlock div.stButton > button,
+    div[data-testid="stVerticalBlock"] > div > div[data-testid="stHorizontalBlock"] div.stButton > button {
+        background-color: #f1f5f9 !important;
+        border: 1px solid #cbd5e1 !important;
+        color: #0f172a !important;
+    }
+    
+    div.stHorizontalBlock div.stButton > button p, 
+    div.stHorizontalBlock div.stButton > button span {
+        color: #0f172a !important;
     }
 
     /* Tipografía General en Área Principal */
@@ -105,7 +121,7 @@ ESTILOS_MODERNOS = """
         font-weight: 500 !important;
     }
 
-    /* Contenedores desplegables (Expanders) en Gris Clarito */
+    /* Contenedores desplegables (Expanders generales) en Gris Clarito */
     .stExpander {
         background-color: #f1f5f9 !important;
         border: 1px solid #cbd5e1 !important;
@@ -113,7 +129,7 @@ ESTILOS_MODERNOS = """
         box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
     }
 
-    /* 3. BOTONES DE NAVEGACIÓN / GRADOS (Fondo gris clarito fijo, SIN oscurecerse al presionar) */
+    /* Botones de navegación / grados (Fondo gris clarito fijo, SIN oscurecerse al presionar) */
     div.stButton > button {
         width: 100% !important;
         height: 60px !important;
@@ -151,7 +167,7 @@ ESTILOS_MODERNOS = """
         color: #ffffff !important;
     }
 
-    /* 2. BOTÓN DE GUARDAR CAMBIOS (Fondo oscuro, texto BLANCO forzado) */
+    /* Botón de Guardar Cambios (Fondo oscuro, texto BLANCO forzado) */
     div[data-testid="stForm"] div.stButton > button {
         background-color: #0f172a !important;
         border: 1px solid #0f172a !important;
@@ -656,7 +672,7 @@ elif opcion == "Exportar Reportes":
             WHERE a.fecha = ? AND u.grado_seccion = ?
             ORDER BY a.hora ASC
         ''', (fecha_sel.strftime("%Y-%m-%d"), cat_rep_activa))
-        nombre_archivo = f"asistencia_{cat_rep_activa}_{fecha_sel.strftime('%Y-%m-%d')}.csv"
+        nombre_archivo = f"asistencia_{cat_rep__activa if 'cat_rep_activa' in locals() else cat_rep_activa}_{fecha_sel.strftime('%Y-%m-%d')}.csv"
         etiqueta_seccion = f"Reporte de Asistencia: Grado {cat_rep_activa}"
 
     df_export = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
