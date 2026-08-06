@@ -157,7 +157,7 @@ ESTILOS_AJUSTADOS = """
 
 st.markdown(ESTILOS_AJUSTADOS, unsafe_allow_html=True)
 
-# --- CONEXIÓN PERSISTENTE A BASE DE DATOS EN LA NUBE (TURSO) ---
+# --- CONEXIÓN Y CONSULTAS A BASE DE DATOS (TURSO / SQLITE) ---
 def conectar_bd():
     try:
         url = st.secrets["turso"]["url"]
@@ -173,12 +173,22 @@ def consultar_sql(db, consulta, parametros=()):
     res = db.execute(consulta, parametros)
     if hasattr(res, 'rows'):
         return res.rows
-    return res.fetchall()
+    if hasattr(res, 'fetchall'):
+        return res.fetchall()
+    return []
+
+def ejecutar_sql(db, consulta, parametros=()):
+    """Ejecuta INSERT, UPDATE o DELETE de forma segura en Turso o SQLite"""
+    try:
+        db.execute(consulta, parametros)
+    except Exception as e:
+        if "'result'" not in str(e):
+            raise e
 
 def inicializar_tablas():
     try:
         db = conectar_bd()
-        db.execute('''
+        ejecutar_sql(db, '''
             CREATE TABLE IF NOT EXISTS usuarios (
                 codigo_id TEXT PRIMARY KEY,
                 nombre TEXT,
@@ -189,7 +199,7 @@ def inicializar_tablas():
                 email TEXT
             )
         ''')
-        db.execute('''
+        ejecutar_sql(db, '''
             CREATE TABLE IF NOT EXISTS asistencias (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 codigo_id TEXT,
@@ -294,10 +304,14 @@ if "id" in query_params:
 
         if tipo_movimiento:
             try:
-                db.execute('''
+                ejecutar_sql(
+                    db,
+                    '''
                     INSERT INTO asistencias (codigo_id, fecha, hora, tipo_registro)
                     VALUES (?, ?, ?, ?)
-                ''', (codigo_qr, fecha_hoy, hora_actual, tipo_movimiento))
+                    ''',
+                    (codigo_qr, fecha_hoy, hora_actual, tipo_movimiento)
+                )
 
                 st.success(f"¡{tipo_movimiento} registrada correctamente! Marcaje para {nombre} {apellido} ({tipo_persona} - {grado}) a las {hora_actual}.")
 
@@ -468,7 +482,7 @@ elif opcion == "Directorio por Grados":
 
                 if btn_guardar:
                     db = conectar_bd()
-                    db.execute('''
+                    ejecutar_sql(db, '''
                         UPDATE usuarios 
                         SET nombre = ?, apellido = ?, tipo_persona = ?, grado_seccion = ?, funcion_cargo = ?, email = ?
                         WHERE codigo_id = ?
