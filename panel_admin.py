@@ -156,7 +156,6 @@ st.markdown(ESTILOS_AJUSTADOS, unsafe_allow_html=True)
 def conectar_bd():
     conn = sqlite3.connect("colegio.db")
     cursor = conn.cursor()
-    # Asegurar que la columna email exista en la tabla usuarios
     cursor.execute("PRAGMA table_info(usuarios)")
     columnas = [col[1] for col in cursor.fetchall()]
     if "email" not in columnas and "usuarios" in [t[0] for t in cursor.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]:
@@ -164,12 +163,20 @@ def conectar_bd():
         conn.commit()
     return conn
 
-# --- FUNCIÓN DE ENVÍO DE CORREO ELECTRÓNICO ---
+# --- FUNCIÓN DE ENVÍO DE CORREO ELECTRÓNICO CON LECTURA AUTOMÁTICA DE SECRETS ---
 def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grado, fecha, hora):
-    smtp_server = st.session_state.get("smtp_server", "smtp.gmail.com")
-    smtp_port = st.session_state.get("smtp_port", 587)
-    remitente = st.session_state.get("smtp_email", "")
-    password = st.session_state.get("smtp_password", "")
+    try:
+        # Intenta obtener las credenciales directamente de Streamlit Secrets
+        smtp_server = st.secrets["smtp"]["server"]
+        smtp_port = st.secrets["smtp"]["port"]
+        remitente = st.secrets["smtp"]["email"]
+        password = st.secrets["smtp"]["password"]
+    except Exception:
+        # Respaldo en caso de que se configuren manualmente desde la interfaz
+        smtp_server = st.session_state.get("smtp_server", "smtp.gmail.com")
+        smtp_port = st.session_state.get("smtp_port", 587)
+        remitente = st.session_state.get("smtp_email", "")
+        password = st.session_state.get("smtp_password", "")
 
     if not remitente or not password:
         return False, "Credenciales SMTP no configuradas."
@@ -215,7 +222,6 @@ query_params = st.query_params
 if "id" in query_params:
     codigo_qr = query_params["id"]
     
-    # Obtener fecha y hora en zona horaria local de Venezuela
     ahora_ve = datetime.now(ZoneInfo("America/Caracas"))
     fecha_hoy = ahora_ve.strftime("%Y-%m-%d")
     hora_actual = ahora_ve.strftime("%H:%M:%S")
@@ -223,14 +229,12 @@ if "id" in query_params:
     conn = conectar_bd()
     cursor = conn.cursor()
 
-    # Verificar si el código existe en la base de datos
     cursor.execute("SELECT nombre, apellido, tipo_persona, grado_seccion, email FROM usuarios WHERE codigo_id = ?", (codigo_qr,))
     usuario = cursor.fetchone()
 
     if usuario:
         nombre, apellido, tipo_persona, grado, email_usuario = usuario
         
-        # MANEJO SEGURO DE REGISTRO DE ASISTENCIA
         try:
             cursor.execute('''
                 INSERT INTO asistencias (codigo_id, fecha, hora, tipo_registro)
@@ -239,7 +243,6 @@ if "id" in query_params:
             conn.commit()
             st.success(f"¡Asistencia registrada correctamente! Marcaje para {nombre} {apellido} ({tipo_persona} - {grado}) a las {hora_actual}.")
 
-            # Envío de correo electrónico si está registrado
             if email_usuario:
                 exito, msg = enviar_correo_confirmacion(
                     destinatario=email_usuario,
@@ -297,7 +300,6 @@ if opcion == "Dashboard & Asistencias":
     st.title("Resumen de Asistencia Diaria")
     st.write("Monitoreo en tiempo real de marcajes en la entrada del colegio.")
     
-    # Usar hora local de Venezuela para filtrar la asistencia diaria
     fecha_hoy = datetime.now(ZoneInfo("America/Caracas")).strftime("%Y-%m-%d")
     
     conn = conectar_bd()
@@ -442,7 +444,6 @@ elif opcion == "Exportar Reportes":
 
     st.write("")
 
-    # --- BOTÓN DE DESCARGA GLOBAL (TODOS LOS GRADOS) ---
     conn = conectar_bd()
     query_global = '''
         SELECT a.fecha as Fecha, a.hora as Hora, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
@@ -469,7 +470,6 @@ elif opcion == "Exportar Reportes":
     st.markdown("---")
     st.subheader("Filtrar o Descargar por Grado Específico")
 
-    # Botones grandes de selección de reportes por grado
     categorias_rep = [
         ("Inicial", "Inicial"),
         ("1er Grado", "1ro"),
