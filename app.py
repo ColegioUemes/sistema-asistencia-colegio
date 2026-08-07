@@ -603,8 +603,11 @@ elif opcion == "Exportar Reportes":
         ORDER BY a.hora ASC
     ''', (fecha_sel.strftime("%Y-%m-%d"),))
     
-    cols_exp = ["Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]
-    df_global = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
+    cols_exp = ["Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo", "Notas"]
+    df_global = pd.DataFrame(filas, columns=cols_exp[:-1]) if filas else pd.DataFrame(columns=cols_exp[:-1])
+    
+    # Agregar columna Notas vacía
+    df_global["Notas"] = ""
 
     if not df_global.empty:
         csv_global = df_global.to_csv(index=False, encoding='utf-8-sig')
@@ -681,7 +684,10 @@ elif opcion == "Exportar Reportes":
         nombre_archivo = f"asistencia_{cat_rep_activa}_{fecha_sel.strftime('%Y-%m-%d')}.csv"
         etiqueta_seccion = f"Reporte de Asistencia: Grado {cat_rep_activa}"
 
-    df_export = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
+    df_export = pd.DataFrame(filas, columns=cols_exp[:-1]) if filas else pd.DataFrame(columns=cols_exp[:-1])
+    
+    # Agregar columna Notas vacía para el reporte por grado
+    df_export["Notas"] = ""
 
     st.write(f"**{etiqueta_seccion} ({len(df_export)} marcajes registrados)**")
 
