@@ -18,10 +18,9 @@ st.set_page_config(
 # --- URL BASE ACTIVA ---
 URL_BASE = "https://sistema-asistencia-colegio-zjggkkwftvrnj2w9kkjvrg.streamlit.app"
 
-# --- ESTILOS CSS PERSONALIZADOS (CORRECCIÓN DE ICONOS SUPERIORES) ---
+# --- ESTILOS CSS PERSONALIZADOS ---
 ESTILOS_MODERNOS = """
 <style>
-    /* Import Google Font Inter */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
     .stApp {
@@ -30,14 +29,12 @@ ESTILOS_MODERNOS = """
         color: #0f172a !important;
     }
 
-    /* Ocultar elementos innecesarios de Streamlit y personalizar header */
     header[data-testid="stHeader"] {
         background-color: rgba(255, 255, 255, 0.8) !important;
         backdrop-filter: blur(8px);
         border-bottom: 1px solid #e2e8f0;
     }
 
-    /* CORRECCIÓN: Botones e iconos en la barra superior de Streamlit forzados a color gris */
     header[data-testid="stHeader"] button,
     header[data-testid="stHeader"] [data-testid="baseButton-header"],
     header[data-testid="stHeader"] svg {
@@ -56,7 +53,6 @@ ESTILOS_MODERNOS = """
         fill: #0f172a !important;
     }
 
-    /* Barra lateral estilo Azul Oscuro */
     [data-testid="stSidebar"] {
         background-color: #1e293b !important;
         border-right: 1px solid #cbd5e1;
@@ -98,7 +94,6 @@ ESTILOS_MODERNOS = """
         transform: none !important;
     }
 
-    /* Tipografía General en Área Principal */
     h1, h2, h3, h4 {
         color: #0f172a !important;
         font-weight: 700 !important;
@@ -107,7 +102,6 @@ ESTILOS_MODERNOS = """
         color: #334155;
     }
 
-    /* Tarjetas de Métricas en Gris Clarito */
     [data-testid="stMetric"] {
         background-color: #f1f5f9 !important;
         border: 1px solid #cbd5e1 !important;
@@ -126,7 +120,6 @@ ESTILOS_MODERNOS = """
         font-weight: 500 !important;
     }
 
-    /* Contenedores desplegables (Expanders generales) en Gris Clarito */
     .stExpander {
         background-color: #f1f5f9 !important;
         border: 1px solid #cbd5e1 !important;
@@ -134,7 +127,6 @@ ESTILOS_MODERNOS = """
         box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
     }
 
-    /* Botones de navegación / grados */
     div.stButton > button {
         width: 100% !important;
         height: 60px !important;
@@ -160,7 +152,6 @@ ESTILOS_MODERNOS = """
         box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
     }
 
-    /* Botón seleccionado (Activo) con texto blanco */
     div.stButton > button[kind="primary"] {
         background: #0f172a !important;
         border: 1px solid #0f172a !important;
@@ -172,7 +163,6 @@ ESTILOS_MODERNOS = """
         color: #ffffff !important;
     }
 
-    /* Botones de Guardar Cambios / Acción General dentro de formularios */
     div[data-testid="stForm"] div.stButton > button, div.stFormSubmitButton > button {
         background-color: #0f172a !important;
         border: 1px solid #0f172a !important;
@@ -184,7 +174,6 @@ ESTILOS_MODERNOS = """
         color: #ffffff !important;
     }
 
-    /* Botón de Descarga Excel / General */
     div.stDownloadButton > button {
         background: #0f172a !important;
         border: none !important;
@@ -206,7 +195,6 @@ ESTILOS_MODERNOS = """
         transform: translateY(-1px);
     }
 
-    /* Inputs y Formularios */
     .stTextInput input, .stNumberInput input, .stSelectbox select {
         background-color: #ffffff !important;
         color: #0f172a !important;
@@ -465,7 +453,7 @@ if opcion == "Dashboard & Asistencias":
     else:
         st.info("Aún no hay registros de asistencia para la fecha de hoy.")
 
-# --- SECCIÓN 2: DIRECTORIO POR GRADOS Y PERSONAL (AHORA EDITABLE CON st.data_editor DENTRO DE st.form) ---
+# --- SECCIÓN 2: DIRECTORIO POR GRADOS Y PERSONAL ---
 elif opcion == "Directorio por Grados":
     st.title("Directorio por Grados y Personal")
     st.write("Seleccione una categoría para consultar y editar directamente en la tabla interactiva:")
@@ -528,14 +516,13 @@ elif opcion == "Directorio por Grados":
             "email": "Correo Electrónico"
         })
 
-        # Tabla Interactiva y botón de guardado protegidos dentro de un formulario (st.form)
         with st.form(key=f"form_editor_{cat_activa}"):
             df_editado = st.data_editor(
                 df_tabla_limpia,
                 use_container_width=True,
                 hide_index=True,
                 key=f"editor_{cat_activa}",
-                disabled=["Código ID"]  # El código ID no debe modificarse para no romper relaciones
+                disabled=["Código ID"]
             )
 
             submitted = st.form_submit_button("💾 Guardar Cambios Realizados")
@@ -560,10 +547,10 @@ elif opcion == "Directorio por Grados":
     else:
         st.info("No hay usuarios registrados en esta categoría.")
 
-# --- SECCIÓN 3: EXPORTAR REPORTES POR GRADO Y GENERAL ---
+# --- SECCIÓN 3: EXPORTAR REPORTES POR GRADO Y GENERAL (AHORA CON NOTAS EDITABLES) ---
 elif opcion == "Exportar Reportes":
     st.title("Exportación de Reportes de Asistencia")
-    st.write("Seleccione la fecha deseada para descargar reportes generales o filtrados por grado:")
+    st.write("Seleccione la fecha deseada para consultar, agregar notas en la tabla y descargar reportes:")
 
     col_fecha, _ = st.columns([1, 2])
     with col_fecha:
@@ -583,13 +570,24 @@ elif opcion == "Exportar Reportes":
     
     cols_exp = ["Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo", "Notas"]
     df_global = pd.DataFrame(filas, columns=cols_exp[:-1]) if filas else pd.DataFrame(columns=cols_exp[:-1])
-    
     df_global["Notas"] = ""
 
+    st.subheader(f"Reporte General Consolidado ({len(df_global)} registros)")
+    st.caption("💡 Haz doble clic en la columna **Notas** de la tabla para escribir observaciones antes de descargar.")
+
     if not df_global.empty:
-        csv_global = df_global.to_csv(index=False, encoding='utf-8-sig')
+        # Usamos st.data_editor para permitir escribir notas de forma interactiva
+        df_global_editado = st.data_editor(
+            df_global,
+            use_container_width=True,
+            hide_index=True,
+            key="editor_reporte_global",
+            disabled=["Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]
+        )
+
+        csv_global = df_global_editado.to_csv(index=False, encoding='utf-8-sig')
         st.download_button(
-            label=f"Descargar Reporte COMPLETO (Todos los Grados y Personal) - {len(df_global)} registros",
+            label=f"Descargar Reporte COMPLETO en Excel (CSV) - {len(df_global_editado)} registros",
             data=csv_global,
             file_name=f"asistencia_GENERAL_{fecha_sel.strftime('%Y-%m-%d')}.csv",
             mime="text/csv"
@@ -667,8 +665,16 @@ elif opcion == "Exportar Reportes":
     st.write(f"**{etiqueta_seccion} ({len(df_export)} marcajes registrados)**")
 
     if not df_export.empty:
-        st.dataframe(df_export, use_container_width=True, hide_index=True)
-        csv = df_export.to_csv(index=False, encoding='utf-8-sig')
+        # Tabla interactiva para escribir notas en el reporte por grado específico
+        df_export_editado = st.data_editor(
+            df_export,
+            use_container_width=True,
+            hide_index=True,
+            key=f"editor_reporte_{cat_rep_activa}",
+            disabled=["Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]
+        )
+
+        csv = df_export_editado.to_csv(index=False, encoding='utf-8-sig')
         
         st.download_button(
             label=f"Descargar Reporte ({cat_rep_activa}) en Excel (CSV)",
