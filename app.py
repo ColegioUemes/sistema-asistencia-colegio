@@ -37,7 +37,7 @@ ESTILOS_MODERNOS = """
         border-bottom: 1px solid #e2e8f0;
     }
 
-    /* CORRECCIÓN: Botones e iconos en la barra superior de Streamlit (entre 'Share' y los tres puntos) forzados a color gris */
+    /* CORRECCIÓN: Botones e iconos en la barra superior de Streamlit forzados a color gris */
     header[data-testid="stHeader"] button,
     header[data-testid="stHeader"] [data-testid="baseButton-header"],
     header[data-testid="stHeader"] svg {
@@ -78,7 +78,6 @@ ESTILOS_MODERNOS = """
         background-color: #334155 !important;
     }
 
-    /* Botones dentro de la barra lateral (Configuración de Correo / Expanders) con fondo gris oscuro idéntico a la barra */
     [data-testid="stSidebar"] div.stButton > button,
     [data-testid="stSidebar"] [data-testid="stExpander"] {
         background-color: #1e293b !important;
@@ -135,7 +134,7 @@ ESTILOS_MODERNOS = """
         box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
     }
 
-    /* Botones de navegación / grados (Fondo gris clarito fijo, SIN oscurecerse al presionar) */
+    /* Botones de navegación / grados */
     div.stButton > button {
         width: 100% !important;
         height: 60px !important;
@@ -173,8 +172,8 @@ ESTILOS_MODERNOS = """
         color: #ffffff !important;
     }
 
-    /* Botón de Guardar Cambios (Fondo oscuro, texto BLANCO forzado) */
-    div[data-testid="stForm"] div.stButton > button {
+    /* Botones de Guardar Cambios / Acción General */
+    div[data-testid="stForm"] div.stButton > button, div.stFormSubmitButton > button {
         background-color: #0f172a !important;
         border: 1px solid #0f172a !important;
         height: 50px !important;
@@ -182,14 +181,6 @@ ESTILOS_MODERNOS = """
     
     div[data-testid="stForm"] div.stButton > button p, 
     div[data-testid="stForm"] div.stButton > button span {
-        color: #ffffff !important;
-    }
-    
-    div[data-testid="stForm"] div.stButton > button:hover,
-    div[data-testid="stForm"] div.stButton > button:active,
-    div[data-testid="stForm"] div.stButton > button:focus {
-        background-color: #334155 !important;
-        border-color: #334155 !important;
         color: #ffffff !important;
     }
 
@@ -215,24 +206,12 @@ ESTILOS_MODERNOS = """
         transform: translateY(-1px);
     }
 
-    /* DataFrames y Tablas */
-    .stDataFrame {
-        background-color: #f1f5f9;
-        border-radius: 12px;
-        border: 1px solid #cbd5e1;
-        overflow: hidden;
-    }
-    
     /* Inputs y Formularios */
     .stTextInput input, .stNumberInput input, .stSelectbox select {
         background-color: #ffffff !important;
         color: #0f172a !important;
         border: 1px solid #cbd5e1 !important;
         border-radius: 8px !important;
-    }
-    .stTextInput input:focus, .stNumberInput input:focus {
-        border-color: #0f172a !important;
-        box-shadow: 0 0 0 1px #0f172a !important;
     }
 </style>
 """
@@ -486,10 +465,10 @@ if opcion == "Dashboard & Asistencias":
     else:
         st.info("Aún no hay registros de asistencia para la fecha de hoy.")
 
-# --- SECCIÓN 2: DIRECTORIO POR GRADOS Y PERSONAL ---
+# --- SECCIÓN 2: DIRECTORIO POR GRADOS Y PERSONAL (AHORA EDITABLE CON st.data_editor) ---
 elif opcion == "Directorio por Grados":
     st.title("Directorio por Grados y Personal")
-    st.write("Seleccione una categoría para consultar o editar la lista correspondiente:")
+    st.write("Seleccione una categoría para consultar y editar directamente en la tabla interactiva:")
 
     categorias = [
         ("Inicial", "Inicial"),
@@ -540,39 +519,7 @@ elif opcion == "Directorio por Grados":
         titulo_seccion = f"Lista de Alumnos: Grado {cat_activa}"
 
     st.subheader(f"{titulo_seccion} ({len(df_grupo)} asignados)")
-
-    with st.expander(f"Editar un usuario de esta categoría ({cat_activa})", expanded=False):
-        if not df_grupo.empty:
-            codigo_sel = st.selectbox(f"Seleccione el código a modificar:", df_grupo["codigo_id"].tolist(), key=f"select_{cat_activa}")
-            usuario_actual = df_grupo[df_grupo["codigo_id"] == codigo_sel].iloc[0]
-
-            with st.form(f"form_editar_{cat_activa}"):
-                c1, c2 = st.columns(2)
-                with c1:
-                    nuevo_nombre = st.text_input("Nombre", value=usuario_actual["nombre"])
-                    nuevo_apellido = st.text_input("Apellido", value=usuario_actual["apellido"])
-                    tipo_persona = st.selectbox("Tipo", ["Estudiante", "Personal"], index=0 if usuario_actual["tipo_persona"] == "Estudiante" else 1)
-                    nuevo_email = st.text_input("Correo Electrónico / Representante", value=usuario_actual["email"] if pd.notna(usuario_actual["email"]) else "")
-
-                with c2:
-                    grados_list = ["Inicial", "1ro", "2do", "3ro", "4to", "5to", "6to", "N/A"]
-                    idx_grado = grados_list.index(usuario_actual["grado_seccion"]) if usuario_actual["grado_seccion"] in grados_list else 0
-                    grado = st.selectbox("Grado", grados_list, index=idx_grado)
-                    cargo = st.text_input("Función / Cargo", value=usuario_actual["funcion_cargo"])
-
-                btn_guardar = st.form_submit_button("Guardar Cambios")
-
-                if btn_guardar:
-                    db = conectar_bd()
-                    ejecutar_sql(db, '''
-                        UPDATE usuarios 
-                        SET nombre = ?, apellido = ?, tipo_persona = ?, grado_seccion = ?, funcion_cargo = ?, email = ?
-                        WHERE codigo_id = ?
-                    ''', (nuevo_nombre, nuevo_apellido, tipo_persona, grado, cargo, nuevo_email, codigo_sel))
-                    st.success(f"¡Datos actualizados para el código {codigo_sel}!")
-                    st.rerun()
-        else:
-            st.write("No hay usuarios registrados en esta categoría.")
+    st.caption("💡 Puede editar cualquier celda haciendo doble clic sobre ella en la tabla inferior. Al finalizar, haga clic en el botón de guardar cambios.")
 
     if not df_grupo.empty:
         df_tabla_limpia = df_grupo.rename(columns={
@@ -580,7 +527,35 @@ elif opcion == "Directorio por Grados":
             "tipo_persona": "Rol", "grado_seccion": "Grado", "funcion_cargo": "Cargo / Función",
             "email": "Correo Electrónico"
         })
-        st.dataframe(df_tabla_limpia, use_container_width=True, hide_index=True)
+
+        # Tabla Interactiva Editable
+        df_editado = st.data_editor(
+            df_tabla_limpia,
+            use_container_width=True,
+            hide_index=True,
+            key=f"editor_{cat_activa}",
+            disabled=["Código ID"]  # El código ID no debe modificarse para no romper relaciones
+        )
+
+        if st.button("💾 Guardar Cambios Realizados", key=f"guardar_{cat_activa}"):
+            db_save = conectar_bd()
+            try:
+                for _, row in df_editado.iterrows():
+                    ejecutar_sql(db_save, '''
+                        UPDATE usuarios 
+                        SET nombre = ?, apellido = ?, tipo_persona = ?, grado_seccion = ?, funcion_cargo = ?, email = ?
+                        WHERE codigo_id = ?
+                    ''', (
+                        row["Nombre"], row["Apellido"], row["Rol"], 
+                        row["Grado"], row["Cargo / Función"], row["Correo Electrónico"], 
+                        row["Código ID"]
+                    ))
+                st.success("¡Todos los cambios se han guardado exitosamente en la base de datos!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Error al actualizar los datos: {e}")
+    else:
+        st.info("No hay usuarios registrados en esta categoría.")
 
 # --- SECCIÓN 3: EXPORTAR REPORTES POR GRADO Y GENERAL ---
 elif opcion == "Exportar Reportes":
@@ -606,7 +581,6 @@ elif opcion == "Exportar Reportes":
     cols_exp = ["Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo", "Notas"]
     df_global = pd.DataFrame(filas, columns=cols_exp[:-1]) if filas else pd.DataFrame(columns=cols_exp[:-1])
     
-    # Agregar columna Notas vacía
     df_global["Notas"] = ""
 
     if not df_global.empty:
@@ -685,8 +659,6 @@ elif opcion == "Exportar Reportes":
         etiqueta_seccion = f"Reporte de Asistencia: Grado {cat_rep_activa}"
 
     df_export = pd.DataFrame(filas, columns=cols_exp[:-1]) if filas else pd.DataFrame(columns=cols_exp[:-1])
-    
-    # Agregar columna Notas vacía para el reporte por grado
     df_export["Notas"] = ""
 
     st.write(f"**{etiqueta_seccion} ({len(df_export)} marcajes registrados)**")
@@ -699,7 +671,7 @@ elif opcion == "Exportar Reportes":
             label=f"Descargar Reporte ({cat_rep_activa}) en Excel (CSV)",
             data=csv,
             file_name=nombre_archivo,
-            mime="text/css" if False else "text/csv"
+            mime="text/csv"
         )
     else:
         st.info(f"No hay marcajes de asistencia registrados para {cat_rep_activa} en la fecha {fecha_sel.strftime('%Y-%m-%d')}.")
