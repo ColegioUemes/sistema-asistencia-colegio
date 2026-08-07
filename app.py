@@ -229,6 +229,9 @@ def consultar_sql(db, consulta, parametros=()):
 def ejecutar_sql(db, consulta, parametros=()):
     try:
         db.execute(consulta, parametros)
+        # Si la conexión es de tipo Turso sync y soporta commit/sync explícito
+        if hasattr(db, 'commit'):
+            db.commit()
     except Exception as e:
         if "'result'" not in str(e):
             raise e
@@ -257,7 +260,6 @@ def inicializar_tablas():
                 UNIQUE(codigo_id, fecha, tipo_registro)
             )
         ''')
-        # Tabla para guardar notas asociadas a cada marcaje específico de asistencia
         ejecutar_sql(db, '''
             CREATE TABLE IF NOT EXISTS notas_asistencia (
                 asistencia_id INTEGER PRIMARY KEY,
@@ -566,7 +568,6 @@ elif opcion == "Exportar Reportes":
     st.write("")
 
     db = conectar_bd()
-    # Modificamos la consulta para incluir el id único de la asistencia y la nota guardada en Turso
     filas = consultar_sql(db, '''
         SELECT a.id as ID_Asistencia, a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
                u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo, COALESCE(n.nota, '') as Notas 
@@ -580,7 +581,6 @@ elif opcion == "Exportar Reportes":
     cols_exp = ["ID_Asistencia", "Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo", "Notas"]
     df_global = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
 
-    # Ocultar el ID técnico en la visualización pero mantenerlo en el DataFrame
     df_global_vista = df_global.drop(columns=["ID_Asistencia"]) if not df_global.empty else df_global
 
     st.subheader(f"Reporte General Consolidado ({len(df_global_vista)} registros)")
@@ -604,7 +604,6 @@ elif opcion == "Exportar Reportes":
                     for idx, row in df_global_editado.iterrows():
                         asist_id = df_global.iloc[idx]["ID_Asistencia"]
                         nota_val = row["Notas"]
-                        # Guardar o actualizar la nota en Turso usando INSERT OR REPLACE
                         ejecutar_sql(db_save, '''
                             INSERT OR REPLACE INTO notas_asistencia (asistencia_id, nota)
                             VALUES (?, ?)
