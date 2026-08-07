@@ -257,6 +257,13 @@ def inicializar_tablas():
                 UNIQUE(codigo_id, fecha, tipo_registro)
             )
         ''')
+        # Tabla para guardar notas asociadas a cada marcaje específico de asistencia
+        ejecutar_sql(db, '''
+            CREATE TABLE IF NOT EXISTS notas_asistencia (
+                asistencia_id INTEGER PRIMARY KEY,
+                nota TEXT
+            )
+        ''')
     except Exception:
         pass
 
@@ -394,13 +401,6 @@ if "grado_seleccionado" not in st.session_state:
 
 if "reporte_grado_sel" not in st.session_state:
     st.session_state["reporte_grado_sel"] = "Inicial"
-
-# Inicializar estados para almacenar los DataFrames editados con notas de forma persistente
-if "df_global_guardado" not in st.session_state:
-    st.session_state["df_global_guardado"] = None
-
-if "df_grado_guardado" not in st.session_state:
-    st.session_state["df_grado_guardado"] = None
 
 # --- BARRA LATERAL ---
 with st.sidebar:
@@ -566,26 +566,30 @@ elif opcion == "Exportar Reportes":
     st.write("")
 
     db = conectar_bd()
+    # Modificamos la consulta para incluir el id único de la asistencia y la nota guardada en Turso
     filas = consultar_sql(db, '''
-        SELECT a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
-               u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo 
+        SELECT a.id as ID_Asistencia, a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
+               u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo, COALESCE(n.nota, '') as Notas 
         FROM asistencias a
         JOIN usuarios u ON a.codigo_id = u.codigo_id
+        LEFT JOIN notas_asistencia n ON a.id = n.asistencia_id
         WHERE a.fecha = ?
         ORDER BY a.hora ASC
     ''', (fecha_sel.strftime("%Y-%m-%d"),))
     
-    cols_exp = ["Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo", "Notas"]
-    df_global = pd.DataFrame(filas, columns=cols_exp[:-1]) if filas else pd.DataFrame(columns=cols_exp[:-1])
-    df_global["Notas"] = ""
+    cols_exp = ["ID_Asistencia", "Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo", "Notas"]
+    df_global = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
 
-    st.subheader(f"Reporte General Consolidado ({len(df_global)} registros)")
-    st.caption("💡 Haz doble clic en la columna **Notas**, escribe tus observaciones, haz clic en **Guardar Cambios** y luego procede a descargar.")
+    # Ocultar el ID técnico en la visualización pero mantenerlo en el DataFrame
+    df_global_vista = df_global.drop(columns=["ID_Asistencia"]) if not df_global.empty else df_global
+
+    st.subheader(f"Reporte General Consolidado ({len(df_global_vista)} registros)")
+    st.caption("💡 Haz doble clic en la columna **Notas**, escribe tus observaciones, haz clic en **Guardar Cambios** y tus datos quedarán almacenados permanentemente en Turso.")
 
     if not df_global.empty:
         with st.form(key="form_reporte_global"):
             df_global_editado = st.data_editor(
-                df_global,
+                df_global_vista,
                 use_container_width=True,
                 hide_index=True,
                 key="editor_reporte_global",
@@ -595,15 +599,24 @@ elif opcion == "Exportar Reportes":
             btn_guardar_global = st.form_submit_button("💾 Guardar Cambios en Notas (General)")
             
             if btn_guardar_global:
-                st.session_state["df_global_guardado"] = df_global_editado.copy()
-                st.success("¡Notas del reporte general guardadas correctamente listas para descargar!")
+                db_save = conectar_bd()
+                try:
+                    for idx, row in df_global_editado.iterrows():
+                        asist_id = df_global.iloc[idx]["ID_Asistencia"]
+                        nota_val = row["Notas"]
+                        # Guardar o actualizar la nota en Turso usando INSERT OR REPLACE
+                        ejecutar_sql(db_save, '''
+                            INSERT OR REPLACE INTO notas_asistencia (asistencia_id, nota)
+                            VALUES (?, ?)
+                        ''', (asist_id, nota_val))
+                    st.success("¡Notas guardadas permanentemente en Turso con éxito!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al guardar las notas en la base de datos: {e}")
 
-        # Si ya se guardaron cambios, usamos ese DataFrame para la descarga, de lo contrario usamos el actual
-        df_a_descargar_global = st.session_state["df_global_guardado"] if st.session_state["df_global_guardado"] is not None else df_global_editado
-
-        csv_global = df_a_descargar_global.to_csv(index=False, encoding='utf-8-sig')
+        csv_global = df_global_editado.to_csv(index=False, encoding='utf-8-sig')
         st.download_button(
-            label=f"Descargar Reporte COMPLETO en Excel (CSV) - {len(df_a_descargar_global)} registros",
+            label=f"Descargar Reporte COMPLETO en Excel (CSV) - {len(df_global_editado)} registros",
             data=csv_global,
             file_name=f"asistencia_GENERAL_{fecha_sel.strftime('%Y-%m-%d')}.csv",
             mime="text/csv"
@@ -654,10 +667,11 @@ elif opcion == "Exportar Reportes":
     db = conectar_bd()
     if cat_rep_activa == "Personal":
         filas = consultar_sql(db, '''
-            SELECT a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
-                   u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo 
+            SELECT a.id as ID_Asistencia, a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
+                   u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo, COALESCE(n.nota, '') as Notas 
             FROM asistencias a
             JOIN usuarios u ON a.codigo_id = u.codigo_id
+            LEFT JOIN notas_asistencia n ON a.id = n.asistencia_id
             WHERE a.fecha = ? AND u.tipo_persona = 'Personal'
             ORDER BY a.hora ASC
         ''', (fecha_sel.strftime("%Y-%m-%d"),))
@@ -665,25 +679,26 @@ elif opcion == "Exportar Reportes":
         etiqueta_seccion = "Reporte de Asistencia: Personal"
     else:
         filas = consultar_sql(db, '''
-            SELECT a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
-                   u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo 
+            SELECT a.id as ID_Asistencia, a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
+                   u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo, COALESCE(n.nota, '') as Notas 
             FROM asistencias a
             JOIN usuarios u ON a.codigo_id = u.codigo_id
+            LEFT JOIN notas_asistencia n ON a.id = n.asistencia_id
             WHERE a.fecha = ? AND u.grado_seccion = ?
             ORDER BY a.hora ASC
         ''', (fecha_sel.strftime("%Y-%m-%d"), cat_rep_activa))
         nombre_archivo = f"asistencia_{cat_rep_activa}_{fecha_sel.strftime('%Y-%m-%d')}.csv"
         etiqueta_seccion = f"Reporte de Asistencia: Grado {cat_rep_activa}"
 
-    df_export = pd.DataFrame(filas, columns=cols_exp[:-1]) if filas else pd.DataFrame(columns=cols_exp[:-1])
-    df_export["Notas"] = ""
+    df_export = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
+    df_export_vista = df_export.drop(columns=["ID_Asistencia"]) if not df_export.empty else df_export
 
-    st.write(f"**{etiqueta_seccion} ({len(df_export)} marcajes registrados)**")
+    st.write(f"**{etiqueta_seccion} ({len(df_export_vista)} marcajes registrados)**")
 
     if not df_export.empty:
         with st.form(key=f"form_reporte_{cat_rep_activa}"):
             df_export_editado = st.data_editor(
-                df_export,
+                df_export_vista,
                 use_container_width=True,
                 hide_index=True,
                 key=f"editor_reporte_{cat_rep_activa}",
@@ -693,13 +708,21 @@ elif opcion == "Exportar Reportes":
             btn_guardar_grado = st.form_submit_button(f"💾 Guardar Cambios en Notas ({cat_rep_activa})")
             
             if btn_guardar_grado:
-                st.session_state["df_grado_guardado"] = df_export_editado.copy()
-                st.success(f"¡Notas para {cat_rep_activa} guardadas correctamente listas para descargar!")
+                db_save = conectar_bd()
+                try:
+                    for idx, row in df_export_editado.iterrows():
+                        asist_id = df_export.iloc[idx]["ID_Asistencia"]
+                        nota_val = row["Notas"]
+                        ejecutar_sql(db_save, '''
+                            INSERT OR REPLACE INTO notas_asistencia (asistencia_id, nota)
+                            VALUES (?, ?)
+                        ''', (asist_id, nota_val))
+                    st.success(f"¡Notas para {cat_rep_activa} guardadas permanentemente en Turso con éxito!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al guardar las notas en la base de datos: {e}")
 
-        # Usar el DataFrame guardado o el actual para la descarga por grado
-        df_a_descargar_grado = st.session_state["df_grado_guardado"] if st.session_state["df_grado_guardado"] is not None else df_export_editado
-
-        csv = df_a_descargar_grado.to_csv(index=False, encoding='utf-8-sig')
+        csv = df_export_editado.to_csv(index=False, encoding='utf-8-sig')
         
         st.download_button(
             label=f"Descargar Reporte ({cat_rep_activa}) en Excel (CSV)",
