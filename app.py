@@ -395,6 +395,13 @@ if "grado_seleccionado" not in st.session_state:
 if "reporte_grado_sel" not in st.session_state:
     st.session_state["reporte_grado_sel"] = "Inicial"
 
+# Inicializar estados para almacenar los DataFrames editados con notas de forma persistente
+if "df_global_guardado" not in st.session_state:
+    st.session_state["df_global_guardado"] = None
+
+if "df_grado_guardado" not in st.session_state:
+    st.session_state["df_grado_guardado"] = None
+
 # --- BARRA LATERAL ---
 with st.sidebar:
     st.title("Control Escolar")
@@ -573,21 +580,30 @@ elif opcion == "Exportar Reportes":
     df_global["Notas"] = ""
 
     st.subheader(f"Reporte General Consolidado ({len(df_global)} registros)")
-    st.caption("💡 Haz doble clic en la columna **Notas** de la tabla para escribir observaciones antes de descargar.")
+    st.caption("💡 Haz doble clic en la columna **Notas**, escribe tus observaciones, haz clic en **Guardar Cambios** y luego procede a descargar.")
 
     if not df_global.empty:
-        # Guardamos el resultado devuelto por st.data_editor para capturar las notas introducidas
-        df_global_editado = st.data_editor(
-            df_global,
-            use_container_width=True,
-            hide_index=True,
-            key="editor_reporte_global",
-            disabled=["Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]
-        )
+        with st.form(key="form_reporte_global"):
+            df_global_editado = st.data_editor(
+                df_global,
+                use_container_width=True,
+                hide_index=True,
+                key="editor_reporte_global",
+                disabled=["Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]
+            )
+            
+            btn_guardar_global = st.form_submit_button("💾 Guardar Cambios en Notas (General)")
+            
+            if btn_guardar_global:
+                st.session_state["df_global_guardado"] = df_global_editado.copy()
+                st.success("¡Notas del reporte general guardadas correctamente listas para descargar!")
 
-        csv_global = df_global_editado.to_csv(index=False, encoding='utf-8-sig')
+        # Si ya se guardaron cambios, usamos ese DataFrame para la descarga, de lo contrario usamos el actual
+        df_a_descargar_global = st.session_state["df_global_guardado"] if st.session_state["df_global_guardado"] is not None else df_global_editado
+
+        csv_global = df_a_descargar_global.to_csv(index=False, encoding='utf-8-sig')
         st.download_button(
-            label=f"Descargar Reporte COMPLETO en Excel (CSV) - {len(df_global_editado)} registros",
+            label=f"Descargar Reporte COMPLETO en Excel (CSV) - {len(df_a_descargar_global)} registros",
             data=csv_global,
             file_name=f"asistencia_GENERAL_{fecha_sel.strftime('%Y-%m-%d')}.csv",
             mime="text/csv"
@@ -665,16 +681,25 @@ elif opcion == "Exportar Reportes":
     st.write(f"**{etiqueta_seccion} ({len(df_export)} marcajes registrados)**")
 
     if not df_export.empty:
-        # Guardamos el resultado devuelto por st.data_editor para capturar las notas introducidas por grado
-        df_export_editado = st.data_editor(
-            df_export,
-            use_container_width=True,
-            hide_index=True,
-            key=f"editor_reporte_{cat_rep_activa}",
-            disabled=["Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]
-        )
+        with st.form(key=f"form_reporte_{cat_rep_activa}"):
+            df_export_editado = st.data_editor(
+                df_export,
+                use_container_width=True,
+                hide_index=True,
+                key=f"editor_reporte_{cat_rep_activa}",
+                disabled=["Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]
+            )
+            
+            btn_guardar_grado = st.form_submit_button(f"💾 Guardar Cambios en Notas ({cat_rep_activa})")
+            
+            if btn_guardar_grado:
+                st.session_state["df_grado_guardado"] = df_export_editado.copy()
+                st.success(f"¡Notas para {cat_rep_activa} guardadas correctamente listas para descargar!")
 
-        csv = df_export_editado.to_csv(index=False, encoding='utf-8-sig')
+        # Usar el DataFrame guardado o el actual para la descarga por grado
+        df_a_descargar_grado = st.session_state["df_grado_guardado"] if st.session_state["df_grado_guardado"] is not None else df_export_editado
+
+        csv = df_a_descargar_grado.to_csv(index=False, encoding='utf-8-sig')
         
         st.download_button(
             label=f"Descargar Reporte ({cat_rep_activa}) en Excel (CSV)",
