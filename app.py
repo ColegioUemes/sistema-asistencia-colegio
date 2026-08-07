@@ -547,7 +547,7 @@ elif opcion == "Directorio por Grados":
     else:
         st.info("No hay usuarios registrados en esta categoría.")
 
-# --- SECCIÓN 3: EXPORTAR REPORTES POR GRADO Y GENERAL (AHORA CON NOTAS EDITABLES) ---
+# --- SECCIÓN 3: EXPORTAR REPORTES POR GRADO Y GENERAL ---
 elif opcion == "Exportar Reportes":
     st.title("Exportación de Reportes de Asistencia")
     st.write("Seleccione la fecha deseada para consultar, agregar notas en la tabla y descargar reportes:")
@@ -576,7 +576,7 @@ elif opcion == "Exportar Reportes":
     st.caption("💡 Haz doble clic en la columna **Notas** de la tabla para escribir observaciones antes de descargar.")
 
     if not df_global.empty:
-        # Usamos st.data_editor para permitir escribir notas de forma interactiva
+        # Guardamos el resultado devuelto por st.data_editor para capturar las notas introducidas
         df_global_editado = st.data_editor(
             df_global,
             use_container_width=True,
@@ -665,7 +665,7 @@ elif opcion == "Exportar Reportes":
     st.write(f"**{etiqueta_seccion} ({len(df_export)} marcajes registrados)**")
 
     if not df_export.empty:
-        # Tabla interactiva para escribir notas en el reporte por grado específico
+        # Guardamos el resultado devuelto por st.data_editor para capturar las notas introducidas por grado
         df_export_editado = st.data_editor(
             df_export,
             use_container_width=True,
