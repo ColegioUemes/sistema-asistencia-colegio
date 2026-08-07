@@ -172,7 +172,7 @@ ESTILOS_MODERNOS = """
         color: #ffffff !important;
     }
 
-    /* Botones de Guardar Cambios / Acción General */
+    /* Botones de Guardar Cambios / Acción General dentro de formularios */
     div[data-testid="stForm"] div.stButton > button, div.stFormSubmitButton > button {
         background-color: #0f172a !important;
         border: 1px solid #0f172a !important;
@@ -465,7 +465,7 @@ if opcion == "Dashboard & Asistencias":
     else:
         st.info("Aún no hay registros de asistencia para la fecha de hoy.")
 
-# --- SECCIÓN 2: DIRECTORIO POR GRADOS Y PERSONAL (AHORA EDITABLE CON st.data_editor) ---
+# --- SECCIÓN 2: DIRECTORIO POR GRADOS Y PERSONAL (AHORA EDITABLE CON st.data_editor DENTRO DE st.form) ---
 elif opcion == "Directorio por Grados":
     st.title("Directorio por Grados y Personal")
     st.write("Seleccione una categoría para consultar y editar directamente en la tabla interactiva:")
@@ -519,7 +519,7 @@ elif opcion == "Directorio por Grados":
         titulo_seccion = f"Lista de Alumnos: Grado {cat_activa}"
 
     st.subheader(f"{titulo_seccion} ({len(df_grupo)} asignados)")
-    st.caption("💡 Puede editar cualquier celda haciendo doble clic sobre ella en la tabla inferior. Al finalizar, haga clic en el botón de guardar cambios.")
+    st.caption("💡 Puede editar cualquier celda haciendo doble clic sobre ella en la tabla inferior. Al finalizar, haga clic en el botón de guardar cambios dentro del formulario.")
 
     if not df_grupo.empty:
         df_tabla_limpia = df_grupo.rename(columns={
@@ -528,32 +528,35 @@ elif opcion == "Directorio por Grados":
             "email": "Correo Electrónico"
         })
 
-        # Tabla Interactiva Editable
-        df_editado = st.data_editor(
-            df_tabla_limpia,
-            use_container_width=True,
-            hide_index=True,
-            key=f"editor_{cat_activa}",
-            disabled=["Código ID"]  # El código ID no debe modificarse para no romper relaciones
-        )
+        # Tabla Interactiva y botón de guardado protegidos dentro de un formulario (st.form)
+        with st.form(key=f"form_editor_{cat_activa}"):
+            df_editado = st.data_editor(
+                df_tabla_limpia,
+                use_container_width=True,
+                hide_index=True,
+                key=f"editor_{cat_activa}",
+                disabled=["Código ID"]  # El código ID no debe modificarse para no romper relaciones
+            )
 
-        if st.button("💾 Guardar Cambios Realizados", key=f"guardar_{cat_activa}"):
-            db_save = conectar_bd()
-            try:
-                for _, row in df_editado.iterrows():
-                    ejecutar_sql(db_save, '''
-                        UPDATE usuarios 
-                        SET nombre = ?, apellido = ?, tipo_persona = ?, grado_seccion = ?, funcion_cargo = ?, email = ?
-                        WHERE codigo_id = ?
-                    ''', (
-                        row["Nombre"], row["Apellido"], row["Rol"], 
-                        row["Grado"], row["Cargo / Función"], row["Correo Electrónico"], 
-                        row["Código ID"]
-                    ))
-                st.success("¡Todos los cambios se han guardado exitosamente en la base de datos!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Error al actualizar los datos: {e}")
+            submitted = st.form_submit_button("💾 Guardar Cambios Realizados")
+
+            if submitted:
+                db_save = conectar_bd()
+                try:
+                    for _, row in df_editado.iterrows():
+                        ejecutar_sql(db_save, '''
+                            UPDATE usuarios 
+                            SET nombre = ?, apellido = ?, tipo_persona = ?, grado_seccion = ?, funcion_cargo = ?, email = ?
+                            WHERE codigo_id = ?
+                        ''', (
+                            row["Nombre"], row["Apellido"], row["Rol"], 
+                            row["Grado"], row["Cargo / Función"], row["Correo Electrónico"], 
+                            row["Código ID"]
+                        ))
+                    st.success("¡Todos los cambios se han guardado exitosamente en la base de datos!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al actualizar los datos: {e}")
     else:
         st.info("No hay usuarios registrados en esta categoría.")
 
