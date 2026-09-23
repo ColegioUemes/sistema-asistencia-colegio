@@ -85,31 +85,27 @@ ESTILOS_AJUSTADOS = """
 
 st.markdown(ESTILOS_AJUSTADOS, unsafe_allow_html=True)
 
-# --- GESTIÓN DE AUTORIZACIÓN DE DISPOSITIVO ---
+# --- CONTROL DE ACCESO OBLIGATORIO POR PIN ---
 if "dispositivo_autorizado" not in st.session_state:
     st.session_state.dispositivo_autorizado = False
 
-query_params = st.query_params
-
-# Enlace seguro por parámetro de terminal oficial
-if "terminal" in query_params and query_params["terminal"] == "oficial_colegio_2026":
-    st.session_state.dispositivo_autorizado = True
-
 if not st.session_state.dispositivo_autorizado:
-    st.title("🔒 Acceso Restringido")
-    st.write("Este dispositivo no está autorizado como lector oficial de asistencia.")
+    st.title("🔒 Terminal Bloqueada - Control de Asistencia")
+    st.write("Para escanear códigos o acceder al sistema, este dispositivo debe estar autorizado por la institución.")
     
-    clave_ingresada = st.text_input("Ingrese la clave maestra de la institución:", type="password")
+    with st.form("form_pin"):
+        clave_ingresada = st.text_input("Ingrese la clave maestra de seguridad:", type="password")
+        submit_pin = st.form_submit_button("Desbloquear Terminal")
+        
+        if submit_pin:
+            if clave_ingresada == "Sarratud.89":
+                st.session_state.dispositivo_autorizado = True
+                st.success("¡Dispositivo autorizado con éxito!")
+                st.rerun()
+            else:
+                st.error("Clave incorrecta. Acceso denegado.")
     
-    if st.button("Autorizar este teléfono"):
-        if clave_ingresada == "Sarratud.89":
-            st.session_state.dispositivo_autorizado = True
-            st.success("Dispositivo autorizado correctamente.")
-            st.rerun()
-        else:
-            st.error("Clave incorrecta. Acceso denegado.")
-    
-    st.stop()
+    st.stop()  # Detiene la ejecución aquí si no está autorizado
 
 # --- CONEXIÓN Y BASE DE DATOS ---
 def conectar_bd():
@@ -208,7 +204,9 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
     except Exception as e:
         return False, str(e)
 
-# --- PROCESAMIENTO DE ESCANEO QR ---
+# --- PROCESAMIENTO DE ESCANEO QR (SOLO SI ESTÁ AUTORIZADO) ---
+query_params = st.query_params
+
 if "id" in query_params:
     codigo_qr = query_params["id"]
     ahora_ve = datetime.now(ZoneInfo("America/Caracas"))
@@ -227,7 +225,7 @@ if "id" in query_params:
                 INSERT INTO asistencias (codigo_id, fecha, hora, tipo_registro)
                 VALUES (?, ?, ?, ?)
             ''', (codigo_qr, fecha_hoy, hora_actual, 'Entrada'))
-            st.success(f"¡Asistencia registrada! Marcaje para {nombre} {apellido} ({tipo_persona} - {grado}) a las {hora_actual}.")
+            st.success(f"¡Asistencia registrada con éxito! Marcaje para {nombre} {apellido} ({tipo_persona} - {grado}) a las {hora_actual}.")
 
             if email_usuario:
                 exito, msg = enviar_correo_confirmacion(email_usuario, f"{nombre} {apellido}", tipo_persona, grado, fecha_hoy, hora_actual)
@@ -237,7 +235,7 @@ if "id" in query_params:
                     st.warning(f"Asistencia guardada, pero falló el correo ({msg}).")
         except Exception as e:
             if "UNIQUE" in str(e) or "IntegrityError" in str(e):
-                st.warning(f"⚠️ {nombre} {apellido}, ya registraste tu asistencia el día de hoy.")
+                st.warning(f"⚠️ {nombre} {apellido}, ya habías registrado tu asistencia el día de hoy.")
             else:
                 st.error(f"Error al guardar la asistencia: {e}")
     else:
@@ -254,6 +252,11 @@ if "reporte_grado_sel" not in st.session_state:
 # --- MENÚ LATERAL ---
 with st.sidebar:
     st.title("Control Escolar")
+    st.success("Terminal Autorizada ✅")
+    if st.button("Bloquear Dispositivo"):
+        st.session_state.dispositivo_autorizado = False
+        st.rerun()
+
     st.markdown("---")
     opcion = st.radio("Menú Principal", ["Dashboard & Asistencias", "Directorio por Grados", "Exportar Reportes"])
 
