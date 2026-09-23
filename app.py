@@ -290,7 +290,6 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
         return False, str(e)
 
 # --- LÓGICA DE REGISTRO VÍA URL (ENTRADA / SALIDA) ---
-# Se utiliza st.query_params moderno en lugar del método deprecado
 if "id" in st.query_params:
     codigo_qr = st.query_params["id"]
     
@@ -564,7 +563,3 @@ elif opcion == "Exportar Reportes":
         )
     else:
         st.info(f"No hay registros generales para la fecha {fecha_sel.strftime('%Y-%m-%d')}.")
-            mime="text/csv"
-        )
-    else:
-        st.info(f"No hay marcajes de asistencia registrados para {cat_rep_activa} en la fecha {fecha_sel.strftime('%Y-%m-%d')}.")
