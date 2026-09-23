@@ -8,34 +8,25 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import libsql_client as libsql
 
-# Configuración de página
 st.set_page_config(
     page_title="Sistema de Asistencia Escolar",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Estilos CSS
 ESTILOS_AJUSTADOS = """
 <style>
-    /* Fondo principal */
     .stApp {
         background-color: #f8fafc;
         font-family: 'Segoe UI', Arial, sans-serif;
     }
-
-    /* Barra superior (Header) en #E6F0FA */
     header[data-testid="stHeader"] {
         background-color: #E6F0FA !important;
     }
-
-    /* Estilo del botón Deploy en la barra superior */
     header[data-testid="stHeader"] button {
         color: #00338D !important;
         font-weight: 700 !important;
     }
-
-    /* Traducir texto visual de Deploy a Desplegar */
     header[data-testid="stHeader"] [data-testid="stHeaderActionElements"] button p {
         font-size: 0px !important;
     }
@@ -45,8 +36,6 @@ ESTILOS_AJUSTADOS = """
         color: #00338D !important;
         font-weight: 700 !important;
     }
-    
-    /* Barra lateral azul marino */
     [data-testid="stSidebar"] {
         background-color: #00338D !important;
     }
@@ -58,8 +47,6 @@ ESTILOS_AJUSTADOS = """
         font-weight: 500;
         padding: 8px;
     }
-
-    /* Títulos principales */
     h1 {
         color: #0f172a !important;
         font-weight: 800 !important;
@@ -71,8 +58,6 @@ ESTILOS_AJUSTADOS = """
     p, label, span, div {
         color: #1e293b !important;
     }
-
-    /* Tarjetas de métricas */
     [data-testid="stMetric"] {
         background-color: #E6F0FA !important;
         border: 1px solid #b3cde0 !important;
@@ -84,15 +69,11 @@ ESTILOS_AJUSTADOS = """
         color: #00338D !important;
         font-weight: 800 !important;
     }
-
-    /* Contenedores desplegables */
-    .st-emotion-cache-1h9usn1, .stExpander {
+    .stExpander {
         background-color: #E6F0FA !important;
         border: 1px solid #b3cde0 !important;
         border-radius: 8px !important;
     }
-    
-    /* Botones de grados */
     div.stButton > button {
         width: 100% !important;
         height: 80px !important;
@@ -102,15 +83,11 @@ ESTILOS_AJUSTADOS = """
         transition: all 0.2s ease-in-out;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
     }
-    
-    /* Texto blanco para botones estándar */
     div.stButton > button p, div.stButton > button span {
         color: #ffffff !important;
         font-size: 18px !important;
         font-weight: 700 !important;
     }
-
-    /* Botón de Descarga Excel (st.download_button) */
     div.stDownloadButton > button {
         background-color: #00338D !important;
         border: none !important;
@@ -119,31 +96,23 @@ ESTILOS_AJUSTADOS = """
         padding: 0px 24px !important;
         transition: all 0.2s ease-in-out;
     }
-
     div.stDownloadButton > button p, div.stDownloadButton > button span {
         color: #ffffff !important;
         font-size: 16px !important;
         font-weight: 700 !important;
     }
-
     div.stDownloadButton > button:hover {
         background-color: #002266 !important;
     }
-    
-    /* Hover en botones */
     div.stButton > button:hover {
         background-color: #002266 !important;
         transform: translateY(-2px);
     }
-
-    /* Botón seleccionado (Azul más oscuro) */
     div.stButton > button[kind="primary"] {
         background-color: #001F54 !important;
         border: 2px solid #00338D !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
     }
-
-    /* Tablas */
     .stDataFrame {
         background-color: #ffffff;
         border-radius: 8px;
@@ -154,15 +123,36 @@ ESTILOS_AJUSTADOS = """
 
 st.markdown(ESTILOS_AJUSTADOS, unsafe_allow_html=True)
 
-# --- CONEXIÓN PERSISTENTE A BASE DE DATOS EN LA NUBE (TURSO) ---
+if "dispositivo_autorizado" not in st.session_state:
+    st.session_state.dispositivo_autorizado = False
+
+query_params = st.query_params
+if "terminal" in query_params and query_params["terminal"] == "oficial_colegio_2026":
+    st.session_state.dispositivo_autorizado = True
+
+if not st.session_state.dispositivo_autorizado:
+    st.title("🔒 Acceso Restringido")
+    st.write("Este dispositivo no está autorizado como lector de asistencia.")
+    
+    clave_ingresada = st.text_input("Ingrese la clave maestra de la institución:", type="password")
+    
+    if st.button("Autorizar este teléfono"):
+        if clave_ingresada == "Sarratud.89":
+            st.session_state.dispositivo_autorizado = True
+            st.success("Dispositivo autorizado correctamente.")
+            st.rerun()
+        else:
+            st.error("Clave incorrecta. Acceso denegado.")
+    
+    st.stop()
+
 def conectar_bd():
     try:
         url = st.secrets["turso"]["url"]
         auth_token = st.secrets["turso"]["auth_token"]
         if url.startswith("libsql://"):
             url = url.replace("libsql://", "https://")
-        client = libsql.create_client_sync(url=url, auth_token=auth_token)
-        return client
+        return libsql.create_client_sync(url=url, auth_token=auth_token)
     except Exception:
         return sqlite3.connect("colegio.db")
 
@@ -201,7 +191,6 @@ def inicializar_tablas():
 
 inicializar_tablas()
 
-# --- FUNCIÓN DE ENVÍO DE CORREO ELECTRÓNICO ---
 def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grado, fecha, hora):
     try:
         smtp_server = st.secrets["smtp"]["server"]
@@ -253,8 +242,6 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
     except Exception as e:
         return False, str(e)
 
-# --- LÓGICA DE REGISTRO VÍA URL ---
-query_params = st.query_params
 if "id" in query_params:
     codigo_qr = query_params["id"]
     
@@ -303,14 +290,12 @@ if "id" in query_params:
     
     st.markdown("---")
 
-# Variables de estado para navegación
 if "grado_seleccionado" not in st.session_state:
     st.session_state["grado_seleccionado"] = "Inicial"
 
 if "reporte_grado_sel" not in st.session_state:
     st.session_state["reporte_grado_sel"] = "Inicial"
 
-# --- BARRA LATERAL ---
 with st.sidebar:
     st.title("Control Escolar")
     st.markdown("---")
@@ -328,7 +313,6 @@ with st.sidebar:
         st.session_state["smtp_email"] = st.text_input("Correo Emisor", value=st.session_state.get("smtp_email", ""))
         st.session_state["smtp_password"] = st.text_input("Contraseña / App Pass", type="password", value=st.session_state.get("smtp_password", ""))
 
-# --- SECCIÓN 1: DASHBOARD & ASISTENCIAS ---
 if opcion == "Dashboard & Asistencias":
     st.title("Resumen de Asistencia Diaria")
     st.write("Monitoreo en tiempo real de marcajes en la entrada del colegio.")
@@ -365,7 +349,6 @@ if opcion == "Dashboard & Asistencias":
     else:
         st.info("Aún no hay registros de asistencia para la fecha de hoy.")
 
-# --- SECCIÓN 2: DIRECTORIO POR GRADOS Y PERSONAL ---
 elif opcion == "Directorio por Grados":
     st.title("Directorio por Grados y Personal")
     st.write("Seleccione una categoría para consultar o editar la lista correspondiente:")
@@ -422,7 +405,7 @@ elif opcion == "Directorio por Grados":
 
     with st.expander(f"Editar un usuario de esta categoría ({cat_activa})", expanded=False):
         if not df_grupo.empty:
-            codigo_sel = st.selectbox(f"Seleccione el código a modificar:", df_grupo["codigo_id"].tolist(), key=f"select_{cat_activa}")
+            codigo_sel = st.selectbox("Seleccione el código a modificar:", df_grupo["codigo_id"].tolist(), key=f"select_{cat_activa}")
             usuario_actual = df_grupo[df_grupo["codigo_id"] == codigo_sel].iloc[0]
 
             with st.form(f"form_editar_{cat_activa}"):
@@ -461,7 +444,6 @@ elif opcion == "Directorio por Grados":
         })
         st.dataframe(df_tabla_limpia, use_container_width=True, hide_index=True)
 
-# --- SECCIÓN 3: EXPORTAR REPORTES POR GRADO Y GENERAL ---
 elif opcion == "Exportar Reportes":
     st.title("Exportación de Reportes de Asistencia")
     st.write("Seleccione la fecha deseada para descargar reportes generales o filtrados por grado:")
@@ -576,3 +558,4 @@ elif opcion == "Exportar Reportes":
         )
     else:
         st.info(f"No hay marcajes de asistencia registrados para {cat_rep_activa} en la fecha {fecha_sel.strftime('%Y-%m-%d')}.")
+        
