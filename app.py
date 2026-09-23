@@ -289,6 +289,62 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
     except Exception as e:
         return False, str(e)
 
+# --- SISTEMA DE AUTENTICACIÓN PREVIA (LOGIN) ---
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
+
+if not st.session_state["autenticado"]:
+    st.title("🔒 Acceso Restringido - Control Escolar")
+    st.write("Por seguridad, el sistema requiere inicio de sesión de personal autorizado para procesar asistencias o administrar el sistema.")
+    
+    with st.form("form_login"):
+        usuario_input = st.text_input("Usuario o Correo Autorizado")
+        password_input = st.text_input("Contraseña", type="password")
+        btn_login = st.form_submit_button("Iniciar Sesión")
+        
+        if btn_login:
+            # Puedes configurar las credenciales directamente en los secrets de Streamlit o definir un usuario predeterminado aquí
+            try:
+                admin_user = st.secrets["auth"]["usuario"]
+                admin_pass = st.secrets["auth"]["password"]
+            except Exception:
+                # Credenciales por defecto si no están en secrets (cámbialas o asegúrate de agregarlas en secrets.toml)
+                admin_user = "admin"
+                admin_pass = "colegio2026"
+
+            if usuario_input == admin_user and password_input == admin_pass:
+                st.session_state["autenticado"] = True
+                st.success("¡Acceso concedido!")
+                st.rerun()
+            else:
+                st.error("Credenciales incorrectas. Verifique su usuario y contraseña.")
+    
+    # Detenemos la ejecución aquí para que nadie pueda ver el panel ni escanear si no ha iniciado sesión
+    st.stop()
+
+# --- SI YA ESTÁ AUTENTICADO, CONTINÚA LA APLICACIÓN NORMAL ---
+
+# Botón para cerrar sesión en la barra lateral
+with st.sidebar:
+    st.title("Control Escolar")
+    if st.button("🔒 Cerrar Sesión"):
+        st.session_state["autenticado"] = False
+        st.rerun()
+    st.markdown("---")
+    
+    opcion = st.radio(
+        "Menú Principal",
+        ["Dashboard & Asistencias", "Directorio por Grados", "Exportar Reportes"]
+    )
+
+    st.markdown("---")
+    with st.expander("Configuración Correo (SMTP)"):
+        st.caption("Ajustes automáticos:")
+        st.session_state["smtp_server"] = st.text_input("Servidor SMTP", value=st.session_state.get("smtp_server", "smtp.gmail.com"))
+        st.session_state["smtp_port"] = st.number_input("Puerto", value=st.session_state.get("smtp_port", 587))
+        st.session_state["smtp_email"] = st.text_input("Correo Emisor", value=st.session_state.get("smtp_email", ""))
+        st.session_state["smtp_password"] = st.text_input("Contraseña / App Pass", type="password", value=st.session_state.get("smtp_password", ""))
+
 # --- LÓGICA DE REGISTRO VÍA URL (ENTRADA / SALIDA) ---
 if "id" in st.query_params:
     codigo_qr = st.query_params["id"]
@@ -361,24 +417,6 @@ if "grado_seleccionado" not in st.session_state:
 
 if "reporte_grado_sel" not in st.session_state:
     st.session_state["reporte_grado_sel"] = "Inicial"
-
-# --- BARRA LATERAL ---
-with st.sidebar:
-    st.title("Control Escolar")
-    st.markdown("---")
-    
-    opcion = st.radio(
-        "Menú Principal",
-        ["Dashboard & Asistencias", "Directorio por Grados", "Exportar Reportes"]
-    )
-
-    st.markdown("---")
-    with st.expander("Configuración Correo (SMTP)"):
-        st.caption("Ajustes automáticos:")
-        st.session_state["smtp_server"] = st.text_input("Servidor SMTP", value=st.session_state.get("smtp_server", "smtp.gmail.com"))
-        st.session_state["smtp_port"] = st.number_input("Puerto", value=st.session_state.get("smtp_port", 587))
-        st.session_state["smtp_email"] = st.text_input("Correo Emisor", value=st.session_state.get("smtp_email", ""))
-        st.session_state["smtp_password"] = st.text_input("Contraseña / App Pass", type="password", value=st.session_state.get("smtp_password", ""))
 
 # --- SECCIÓN 1: DASHBOARD & ASISTENCIAS ---
 if opcion == "Dashboard & Asistencias":
@@ -515,6 +553,8 @@ elif opcion == "Exportar Reportes":
     filas = consultar_sql(db, '''
         SELECT a.id as ID_Asistencia, a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
                u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo, COALESCE(n.nota, '') as Notas 
+        SELECT a.id as ID_Asistencia, a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
+               u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo, COALESCE(n.nota, '') as Notas 
         FROM asistencias a
         JOIN usuarios u ON a.codigo_id = u.codigo_id
         LEFT JOIN notas_asistencia n ON a.id = n.asistencia_id
@@ -562,4 +602,4 @@ elif opcion == "Exportar Reportes":
             mime="text/csv"
         )
     else:
-        st.info(f"No hay registros generales para la fecha {fecha_sel.strftime('%Y-%m-%d')}.")
+        st.info(f"No hay registros generales para la fecha {fecha_sel.strftime('%Y-%m-d')}.")
