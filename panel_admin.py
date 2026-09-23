@@ -8,12 +8,14 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import libsql_client as libsql
 
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
     page_title="Sistema de Asistencia Escolar",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
+# --- ESTILOS VISUALES ---
 ESTILOS_AJUSTADOS = """
 <style>
     .stApp {
@@ -24,15 +26,6 @@ ESTILOS_AJUSTADOS = """
         background-color: #E6F0FA !important;
     }
     header[data-testid="stHeader"] button {
-        color: #00338D !important;
-        font-weight: 700 !important;
-    }
-    header[data-testid="stHeader"] [data-testid="stHeaderActionElements"] button p {
-        font-size: 0px !important;
-    }
-    header[data-testid="stHeader"] [data-testid="stHeaderActionElements"] button p::before {
-        content: "Desplegar" !important;
-        font-size: 14px !important;
         color: #00338D !important;
         font-weight: 700 !important;
     }
@@ -76,63 +69,35 @@ ESTILOS_AJUSTADOS = """
     }
     div.stButton > button {
         width: 100% !important;
-        height: 80px !important;
+        height: 60px !important;
         background-color: #00338D !important;
         border: none !important;
         border-radius: 10px !important;
-        transition: all 0.2s ease-in-out;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important;
-    }
-    div.stButton > button p, div.stButton > button span {
-        color: #ffffff !important;
-        font-size: 18px !important;
-        font-weight: 700 !important;
-    }
-    div.stDownloadButton > button {
-        background-color: #00338D !important;
-        border: none !important;
-        border-radius: 8px !important;
-        height: 50px !important;
-        padding: 0px 24px !important;
-        transition: all 0.2s ease-in-out;
-    }
-    div.stDownloadButton > button p, div.stDownloadButton > button span {
         color: #ffffff !important;
         font-size: 16px !important;
         font-weight: 700 !important;
     }
-    div.stDownloadButton > button:hover {
-        background-color: #002266 !important;
-    }
     div.stButton > button:hover {
         background-color: #002266 !important;
-        transform: translateY(-2px);
-    }
-    div.stButton > button[kind="primary"] {
-        background-color: #001F54 !important;
-        border: 2px solid #00338D !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
-    }
-    .stDataFrame {
-        background-color: #ffffff;
-        border-radius: 8px;
-        border: 1px solid #cbd5e1;
     }
 </style>
 """
 
 st.markdown(ESTILOS_AJUSTADOS, unsafe_allow_html=True)
 
+# --- GESTIÓN DE AUTORIZACIÓN DE DISPOSITIVO ---
 if "dispositivo_autorizado" not in st.session_state:
     st.session_state.dispositivo_autorizado = False
 
 query_params = st.query_params
+
+# Enlace seguro por parámetro de terminal oficial
 if "terminal" in query_params and query_params["terminal"] == "oficial_colegio_2026":
     st.session_state.dispositivo_autorizado = True
 
 if not st.session_state.dispositivo_autorizado:
     st.title("🔒 Acceso Restringido")
-    st.write("Este dispositivo no está autorizado como lector de asistencia.")
+    st.write("Este dispositivo no está autorizado como lector oficial de asistencia.")
     
     clave_ingresada = st.text_input("Ingrese la clave maestra de la institución:", type="password")
     
@@ -146,6 +111,7 @@ if not st.session_state.dispositivo_autorizado:
     
     st.stop()
 
+# --- CONEXIÓN Y BASE DE DATOS ---
 def conectar_bd():
     try:
         url = st.secrets["turso"]["url"]
@@ -191,6 +157,7 @@ def inicializar_tablas():
 
 inicializar_tablas()
 
+# --- ENVÍO DE CORREOS ---
 def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grado, fecha, hora):
     try:
         smtp_server = st.secrets["smtp"]["server"]
@@ -217,7 +184,6 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
           <body style="font-family: Arial, sans-serif; color: #1e293b;">
             <div style="max-width: 600px; margin: 0 auto; border: 1px solid #b3cde0; border-radius: 10px; padding: 20px; background-color: #f8fafc;">
               <h2 style="color: #00338D; border-bottom: 2px solid #00338D; padding-bottom: 8px;">Confirmación de Entrada Escolar</h2>
-              <p>Estimado/a representante o usuario,</p>
               <p>Se ha registrado un marcaje de asistencia con los siguientes detalles:</p>
               <ul style="line-height: 1.8;">
                 <li><strong>Nombre:</strong> {nombre_completo}</li>
@@ -226,7 +192,7 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
                 <li><strong>Fecha:</strong> {fecha}</li>
                 <li><strong>Hora de Entrada:</strong> {hora}</li>
               </ul>
-              <p style="font-size: 12px; color: #64748b; margin-top: 20px;">Este es un mensaje automático enviado por el Sistema de Asistencia Escolar.</p>
+              <p style="font-size: 12px; color: #64748b; margin-top: 20px;">Mensaje automático del Sistema de Asistencia Escolar.</p>
             </div>
           </body>
         </html>
@@ -242,9 +208,9 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
     except Exception as e:
         return False, str(e)
 
+# --- PROCESAMIENTO DE ESCANEO QR ---
 if "id" in query_params:
     codigo_qr = query_params["id"]
-    
     ahora_ve = datetime.now(ZoneInfo("America/Caracas"))
     fecha_hoy = ahora_ve.strftime("%Y-%m-%d")
     hora_actual = ahora_ve.strftime("%H:%M:%S")
@@ -261,64 +227,49 @@ if "id" in query_params:
                 INSERT INTO asistencias (codigo_id, fecha, hora, tipo_registro)
                 VALUES (?, ?, ?, ?)
             ''', (codigo_qr, fecha_hoy, hora_actual, 'Entrada'))
-            st.success(f"¡Asistencia registrada correctamente! Marcaje para {nombre} {apellido} ({tipo_persona} - {grado}) a las {hora_actual}.")
+            st.success(f"¡Asistencia registrada! Marcaje para {nombre} {apellido} ({tipo_persona} - {grado}) a las {hora_actual}.")
 
             if email_usuario:
-                exito, msg = enviar_correo_confirmacion(
-                    destinatario=email_usuario,
-                    nombre_completo=f"{nombre} {apellido}",
-                    tipo_persona=tipo_persona,
-                    grado=grado,
-                    fecha=fecha_hoy,
-                    hora=hora_actual
-                )
+                exito, msg = enviar_correo_confirmacion(email_usuario, f"{nombre} {apellido}", tipo_persona, grado, fecha_hoy, hora_actual)
                 if exito:
-                    st.info(f"📧 Se ha enviado una notificación por correo electrónico a: {email_usuario}")
+                    st.info(f"📧 Notificación enviada a: {email_usuario}")
                 else:
-                    st.warning(f"Asistencia registrada, pero no se pudo enviar el correo ({msg}).")
-            else:
-                st.caption("El usuario no tiene un correo electrónico asociado para notificaciones.")
-
+                    st.warning(f"Asistencia guardada, pero falló el correo ({msg}).")
         except Exception as e:
             if "UNIQUE" in str(e) or "IntegrityError" in str(e):
-                st.warning(f"⚠️ {nombre} {apellido}, ya registraste tu asistencia para la jornada de hoy.")
+                st.warning(f"⚠️ {nombre} {apellido}, ya registraste tu asistencia el día de hoy.")
             else:
                 st.error(f"Error al guardar la asistencia: {e}")
-
     else:
         st.error(f"El código ID '{codigo_qr}' no está registrado en el sistema.")
     
     st.markdown("---")
 
+# --- ESTADOS DE NAVEGACIÓN ---
 if "grado_seleccionado" not in st.session_state:
     st.session_state["grado_seleccionado"] = "Inicial"
-
 if "reporte_grado_sel" not in st.session_state:
     st.session_state["reporte_grado_sel"] = "Inicial"
 
+# --- MENÚ LATERAL ---
 with st.sidebar:
     st.title("Control Escolar")
     st.markdown("---")
-    
-    opcion = st.radio(
-        "Menú Principal",
-        ["Dashboard & Asistencias", "Directorio por Grados", "Exportar Reportes"]
-    )
+    opcion = st.radio("Menú Principal", ["Dashboard & Asistencias", "Directorio por Grados", "Exportar Reportes"])
 
     st.markdown("---")
     with st.expander("⚙️ Configuración Correo (SMTP)"):
-        st.caption("Ajustes para envío automático de correos:")
         st.session_state["smtp_server"] = st.text_input("Servidor SMTP", value=st.session_state.get("smtp_server", "smtp.gmail.com"))
         st.session_state["smtp_port"] = st.number_input("Puerto", value=st.session_state.get("smtp_port", 587))
         st.session_state["smtp_email"] = st.text_input("Correo Emisor", value=st.session_state.get("smtp_email", ""))
         st.session_state["smtp_password"] = st.text_input("Contraseña / App Pass", type="password", value=st.session_state.get("smtp_password", ""))
 
+# --- OPCIÓN 1: DASHBOARD ---
 if opcion == "Dashboard & Asistencias":
     st.title("Resumen de Asistencia Diaria")
     st.write("Monitoreo en tiempo real de marcajes en la entrada del colegio.")
     
     fecha_hoy = datetime.now(ZoneInfo("America/Caracas")).strftime("%Y-%m-%d")
-    
     db = conectar_bd()
     filas = consultar_sql(db, '''
         SELECT a.hora, a.codigo_id, u.nombre, u.apellido, u.tipo_persona, u.grado_seccion, u.funcion_cargo 
@@ -331,63 +282,41 @@ if opcion == "Dashboard & Asistencias":
     columnas = ["Hora", "Código ID", "Nombre", "Apellido", "Tipo", "Grado", "Cargo / Función"]
     df_asistencias = pd.DataFrame(filas, columns=columnas) if filas else pd.DataFrame(columns=columnas)
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Registrados Hoy", len(df_asistencias))
-    with col2:
-        alumnos_hoy = len(df_asistencias[df_asistencias['Tipo'] == 'Estudiante']) if not df_asistencias.empty else 0
-        st.metric("Estudiantes Presentes", alumnos_hoy)
-    with col3:
-        personal_hoy = len(df_asistencias[df_asistencias['Tipo'] == 'Personal']) if not df_asistencias.empty else 0
-        st.metric("Personal Presente", personal_hoy)
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Registrados Hoy", len(df_asistencias))
+    c2.metric("Estudiantes Presentes", len(df_asistencias[df_asistencias['Tipo'] == 'Estudiante']) if not df_asistencias.empty else 0)
+    c3.metric("Personal Presente", len(df_asistencias[df_asistencias['Tipo'] == 'Personal']) if not df_asistencias.empty else 0)
 
     st.markdown("---")
     st.subheader("Últimas Entradas Marcadas Hoy")
-    
     if not df_asistencias.empty:
         st.dataframe(df_asistencias, use_container_width=True, hide_index=True)
     else:
         st.info("Aún no hay registros de asistencia para la fecha de hoy.")
 
+# --- OPCIÓN 2: DIRECTORIO POR GRADOS ---
 elif opcion == "Directorio por Grados":
     st.title("Directorio por Grados y Personal")
     st.write("Seleccione una categoría para consultar o editar la lista correspondiente:")
 
     categorias = [
-        ("Inicial", "Inicial"),
-        ("1er Grado", "1ro"),
-        ("2do Grado", "2do"),
-        ("3er Grado", "3ro"),
-        ("4to Grado", "4to"),
-        ("5to Grado", "5to"),
-        ("6to Grado", "6to"),
-        ("Personal", "Personal")
+        ("Inicial", "Inicial"), ("1er Grado", "1ro"), ("2do Grado", "2do"), ("3er Grado", "3ro"),
+        ("4to Grado", "4to"), ("5to Grado", "5to"), ("6to Grado", "6to"), ("Personal", "Personal")
     ]
 
-    col1, col2, col3, col4 = st.columns(4)
-    cols_f1 = [col1, col2, col3, col4]
-    
+    cols_f1 = st.columns(4)
     for idx, (label, clave) in enumerate(categorias[:4]):
-        es_activo = (st.session_state["grado_seleccionado"] == clave)
-        tipo_btn = "primary" if es_activo else "secondary"
-        if cols_f1[idx].button(label, key=f"btn_{clave}", type=tipo_btn):
+        if cols_f1[idx].button(label, key=f"btn_{clave}", type="primary" if st.session_state["grado_seleccionado"] == clave else "secondary"):
             st.session_state["grado_seleccionado"] = clave
             st.rerun()
 
-    st.write("")
-
-    col5, col6, col7, col8 = st.columns(4)
-    cols_f2 = [col5, col6, col7, col8]
-    
+    cols_f2 = st.columns(4)
     for idx, (label, clave) in enumerate(categorias[4:]):
-        es_activo = (st.session_state["grado_seleccionado"] == clave)
-        tipo_btn = "primary" if es_activo else "secondary"
-        if cols_f2[idx].button(label, key=f"btn_{clave}", type=tipo_btn):
+        if cols_f2[idx].button(label, key=f"btn_{clave}", type="primary" if st.session_state["grado_seleccionado"] == clave else "secondary"):
             st.session_state["grado_seleccionado"] = clave
             st.rerun()
 
     st.markdown("---")
-
     cat_activa = st.session_state["grado_seleccionado"]
     db = conectar_bd()
     filas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios")
@@ -414,17 +343,14 @@ elif opcion == "Directorio por Grados":
                     nuevo_nombre = st.text_input("Nombre", value=usuario_actual["nombre"])
                     nuevo_apellido = st.text_input("Apellido", value=usuario_actual["apellido"])
                     tipo_persona = st.selectbox("Tipo", ["Estudiante", "Personal"], index=0 if usuario_actual["tipo_persona"] == "Estudiante" else 1)
-                    nuevo_email = st.text_input("Correo Electrónico / Representante", value=usuario_actual["email"] if pd.notna(usuario_actual["email"]) else "")
-
+                    nuevo_email = st.text_input("Correo Electrónico", value=usuario_actual["email"] if pd.notna(usuario_actual["email"]) else "")
                 with c2:
                     grados_list = ["Inicial", "1ro", "2do", "3ro", "4to", "5to", "6to", "N/A"]
                     idx_grado = grados_list.index(usuario_actual["grado_seccion"]) if usuario_actual["grado_seccion"] in grados_list else 0
                     grado = st.selectbox("Grado", grados_list, index=idx_grado)
                     cargo = st.text_input("Función / Cargo", value=usuario_actual["funcion_cargo"])
 
-                btn_guardar = st.form_submit_button("Guardar Cambios")
-
-                if btn_guardar:
+                if st.form_submit_button("Guardar Cambios"):
                     db = conectar_bd()
                     db.execute('''
                         UPDATE usuarios 
@@ -437,22 +363,16 @@ elif opcion == "Directorio por Grados":
             st.write("No hay usuarios registrados en esta categoría.")
 
     if not df_grupo.empty:
-        df_tabla_limpia = df_grupo.rename(columns={
+        st.dataframe(df_grupo.rename(columns={
             "codigo_id": "Código ID", "nombre": "Nombre", "apellido": "Apellido",
             "tipo_persona": "Rol", "grado_seccion": "Grado", "funcion_cargo": "Cargo / Función",
             "email": "Correo Electrónico"
-        })
-        st.dataframe(df_tabla_limpia, use_container_width=True, hide_index=True)
+        }), use_container_width=True, hide_index=True)
 
+# --- OPCIÓN 3: EXPORTAR REPORTES ---
 elif opcion == "Exportar Reportes":
     st.title("Exportación de Reportes de Asistencia")
-    st.write("Seleccione la fecha deseada para descargar reportes generales o filtrados por grado:")
-
-    col_fecha, _ = st.columns([1, 2])
-    with col_fecha:
-        fecha_sel = st.date_input("Seleccionar Fecha", datetime.now(ZoneInfo("America/Caracas")))
-
-    st.write("")
+    fecha_sel = st.date_input("Seleccionar Fecha", datetime.now(ZoneInfo("America/Caracas")))
 
     db = conectar_bd()
     filas = consultar_sql(db, '''
@@ -468,10 +388,9 @@ elif opcion == "Exportar Reportes":
     df_global = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
 
     if not df_global.empty:
-        csv_global = df_global.to_csv(index=False, encoding='utf-8-sig')
         st.download_button(
-            label=f"Descargar Reporte COMPLETO (Todos los Grados y Personal) - {len(df_global)} registros",
-            data=csv_global,
+            label=f"Descargar Reporte COMPLETO - {len(df_global)} registros",
+            data=df_global.to_csv(index=False, encoding='utf-8-sig'),
             file_name=f"asistencia_GENERAL_{fecha_sel.strftime('%Y-%m-%d')}.csv",
             mime="text/csv"
         )
@@ -482,45 +401,27 @@ elif opcion == "Exportar Reportes":
     st.subheader("Filtrar o Descargar por Grado Específico")
 
     categorias_rep = [
-        ("Inicial", "Inicial"),
-        ("1er Grado", "1ro"),
-        ("2do Grado", "2do"),
-        ("3er Grado", "3ro"),
-        ("4to Grado", "4to"),
-        ("5to Grado", "5to"),
-        ("6to Grado", "6to"),
-        ("Personal", "Personal")
+        ("Inicial", "Inicial"), ("1er Grado", "1ro"), ("2do Grado", "2do"), ("3er Grado", "3ro"),
+        ("4to Grado", "4to"), ("5to Grado", "5to"), ("6to Grado", "6to"), ("Personal", "Personal")
     ]
 
-    col1, col2, col3, col4 = st.columns(4)
-    cols_f1 = [col1, col2, col3, col4]
-    
+    cols_f1 = st.columns(4)
     for idx, (label, clave) in enumerate(categorias_rep[:4]):
-        es_activo = (st.session_state["reporte_grado_sel"] == clave)
-        tipo_btn = "primary" if es_activo else "secondary"
-        if cols_f1[idx].button(label, key=f"rep_btn_{clave}", type=tipo_btn):
+        if cols_f1[idx].button(label, key=f"rep_btn_{clave}", type="primary" if st.session_state["reporte_grado_sel"] == clave else "secondary"):
             st.session_state["reporte_grado_sel"] = clave
             st.rerun()
 
-    st.write("")
-
-    col5, col6, col7, col8 = st.columns(4)
-    cols_f2 = [col5, col6, col7, col8]
-    
+    cols_f2 = st.columns(4)
     for idx, (label, clave) in enumerate(categorias_rep[4:]):
-        es_activo = (st.session_state["reporte_grado_sel"] == clave)
-        tipo_btn = "primary" if es_activo else "secondary"
-        if cols_f2[idx].button(label, key=f"rep_btn_{clave}", type=tipo_btn):
+        if cols_f2[idx].button(label, key=f"rep_btn_{clave}", type="primary" if st.session_state["reporte_grado_sel"] == clave else "secondary"):
             st.session_state["reporte_grado_sel"] = clave
             st.rerun()
-
-    st.markdown("---")
 
     cat_rep_activa = st.session_state["reporte_grado_sel"]
-
     db = conectar_bd()
+    
     if cat_rep_activa == "Personal":
-        filas = consultar_sql(db, '''
+        filas_rep = consultar_sql(db, '''
             SELECT a.fecha as Fecha, a.hora as Hora, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
                    u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo 
             FROM asistencias a
@@ -529,9 +430,8 @@ elif opcion == "Exportar Reportes":
             ORDER BY a.hora ASC
         ''', (fecha_sel.strftime("%Y-%m-%d"),))
         nombre_archivo = f"asistencia_Personal_{fecha_sel.strftime('%Y-%m-%d')}.csv"
-        etiqueta_seccion = "Reporte de Asistencia: Personal"
     else:
-        filas = consultar_sql(db, '''
+        filas_rep = consultar_sql(db, '''
             SELECT a.fecha as Fecha, a.hora as Hora, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
                    u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo 
             FROM asistencias a
@@ -540,22 +440,19 @@ elif opcion == "Exportar Reportes":
             ORDER BY a.hora ASC
         ''', (fecha_sel.strftime("%Y-%m-%d"), cat_rep_activa))
         nombre_archivo = f"asistencia_{cat_rep_activa}_{fecha_sel.strftime('%Y-%m-%d')}.csv"
-        etiqueta_seccion = f"Reporte de Asistencia: Grado {cat_rep_activa}"
 
-    df_export = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
+    df_export = pd.DataFrame(filas_rep, columns=cols_exp) if filas_rep else pd.DataFrame(columns=cols_exp)
 
-    st.write(f"**{etiqueta_seccion} ({len(df_export)} marcajes registrados)**")
+    st.write(f"**Reporte de Asistencia: {cat_rep_activa} ({len(df_export)} marcajes)**")
 
     if not df_export.empty:
         st.dataframe(df_export, use_container_width=True, hide_index=True)
-        csv = df_export.to_csv(index=False, encoding='utf-8-sig')
-        
         st.download_button(
-            label=f"Descargar Reporte ({cat_rep_activa}) en Excel (CSV)",
-            data=csv,
+            label=f"Descargar Reporte ({cat_rep_activa}) en CSV",
+            data=df_export.to_csv(index=False, encoding='utf-8-sig'),
             file_name=nombre_archivo,
             mime="text/csv"
         )
     else:
-        st.info(f"No hay marcajes de asistencia registrados para {cat_rep_activa} en la fecha {fecha_sel.strftime('%Y-%m-%d')}.")
+        st.info(f"No hay marcajes de asistencia registrados para {cat_rep_activa} en la fecha seleccionada.")
         
