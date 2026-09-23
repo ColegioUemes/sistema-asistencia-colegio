@@ -303,14 +303,13 @@ if not st.session_state["autenticado"]:
         btn_login = st.form_submit_button("Iniciar Sesión")
         
         if btn_login:
-            # Puedes configurar las credenciales directamente en los secrets de Streamlit o definir un usuario predeterminado aquí
             try:
                 admin_user = st.secrets["auth"]["usuario"]
                 admin_pass = st.secrets["auth"]["password"]
             except Exception:
-                # Credenciales por defecto si no están en secrets (cámbialas o asegúrate de agregarlas en secrets.toml)
-                admin_user = "admin"
-                admin_pass = "colegio2026"
+                # Credenciales actualizadas solicitadas
+                admin_user = "UEMES"
+                admin_pass = "Sarratud2026"
 
             if usuario_input == admin_user and password_input == admin_pass:
                 st.session_state["autenticado"] = True
@@ -319,12 +318,10 @@ if not st.session_state["autenticado"]:
             else:
                 st.error("Credenciales incorrectas. Verifique su usuario y contraseña.")
     
-    # Detenemos la ejecución aquí para que nadie pueda ver el panel ni escanear si no ha iniciado sesión
     st.stop()
 
 # --- SI YA ESTÁ AUTENTICADO, CONTINÚA LA APLICACIÓN NORMAL ---
 
-# Botón para cerrar sesión en la barra lateral
 with st.sidebar:
     st.title("Control Escolar")
     if st.button("🔒 Cerrar Sesión"):
@@ -553,8 +550,6 @@ elif opcion == "Exportar Reportes":
     filas = consultar_sql(db, '''
         SELECT a.id as ID_Asistencia, a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
                u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo, COALESCE(n.nota, '') as Notas 
-        SELECT a.id as ID_Asistencia, a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
-               u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo, COALESCE(n.nota, '') as Notas 
         FROM asistencias a
         JOIN usuarios u ON a.codigo_id = u.codigo_id
         LEFT JOIN notas_asistencia n ON a.id = n.asistencia_id
@@ -602,4 +597,4 @@ elif opcion == "Exportar Reportes":
             mime="text/csv"
         )
     else:
-        st.info(f"No hay registros generales para la fecha {fecha_sel.strftime('%Y-%m-d')}.")
+        st.info(f"No hay registros generales para la fecha {fecha_sel.strftime('%Y-%m-%d')}.")
