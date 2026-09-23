@@ -289,11 +289,14 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
     except Exception as e:
         return False, str(e)
 
-# --- SISTEMA DE AUTENTICACIÓN PREVIA (LOGIN) ---
-if "autenticado" not in st.session_state:
-    st.session_state["autenticado"] = False
+# --- SISTEMA DE AUTENTICACIÓN PERSISTENTE (VÍA URL PARAMS) ---
+# Comprobamos si la URL ya trae el token de sesión activa
+sesion_url = st.query_params.get("sesion", "")
 
-if not st.session_state["autenticado"]:
+if sesion_url == "activa":
+    st.session_state["autenticado"] = True
+
+if not st.session_state.get("autenticado", False):
     st.title("🔒 Acceso Restringido - Control Escolar")
     st.write("Por seguridad, el sistema requiere inicio de sesión de personal autorizado para procesar asistencias o administrar el sistema.")
     
@@ -307,12 +310,13 @@ if not st.session_state["autenticado"]:
                 admin_user = st.secrets["auth"]["usuario"]
                 admin_pass = st.secrets["auth"]["password"]
             except Exception:
-                # Credenciales actualizadas solicitadas
                 admin_user = "UEMES"
                 admin_pass = "Sarratud2026"
 
             if usuario_input == admin_user and password_input == admin_pass:
                 st.session_state["autenticado"] = True
+                # Fijamos el parámetro en la URL del teléfono para que resista recargas al usar la cámara/QR
+                st.query_params["sesion"] = "activa"
                 st.success("¡Acceso concedido!")
                 st.rerun()
             else:
@@ -326,6 +330,9 @@ with st.sidebar:
     st.title("Control Escolar")
     if st.button("🔒 Cerrar Sesión"):
         st.session_state["autenticado"] = False
+        # Limpiamos el parámetro de sesión de la URL al cerrar sesión
+        if "sesion" in st.query_params:
+            del st.query_params["sesion"]
         st.rerun()
     st.markdown("---")
     
@@ -343,7 +350,7 @@ with st.sidebar:
         st.session_state["smtp_password"] = st.text_input("Contraseña / App Pass", type="password", value=st.session_state.get("smtp_password", ""))
 
 # --- LÓGICA DE REGISTRO VÍA URL (ENTRADA / SALIDA) ---
-if "id" in st.query_params:
+if "id" in st.query_params and st.query_params["id"] != "activa":
     codigo_qr = st.query_params["id"]
     
     ahora_ve = datetime.now(ZoneInfo("America/Caracas"))
