@@ -1,11 +1,11 @@
-import streamlit as st
-import sqlite3
-import pandas as pd
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import streamlit as st
+import sqlite3
+import pandas as pd
 import libsql_client as libsql
 
 # --- CONFIGURACIÓN DE PÁGINA ---
@@ -47,11 +47,6 @@ ESTILOS_MODERNOS = """
         background-color: #f1f5f9 !important;
         color: #0f172a !important;
     }
-    
-    header[data-testid="stHeader"] button:hover svg,
-    header[data-testid="stHeader"] [data-testid="baseButton-header"]:hover svg {
-        fill: #0f172a !important;
-    }
 
     [data-testid="stSidebar"] {
         background-color: #1e293b !important;
@@ -79,19 +74,6 @@ ESTILOS_MODERNOS = """
         background-color: #1e293b !important;
         border: 1px solid #334155 !important;
         box-shadow: none !important;
-    }
-    
-    [data-testid="stSidebar"] div.stButton > button p, 
-    [data-testid="stSidebar"] div.stButton > button span {
-        color: #f1f5f9 !important;
-    }
-    
-    [data-testid="stSidebar"] div.stButton > button:hover,
-    [data-testid="stSidebar"] div.stButton > button:active,
-    [data-testid="stSidebar"] div.stButton > button:focus {
-        background-color: #1e293b !important;
-        border-color: #475569 !important;
-        transform: none !important;
     }
 
     h1, h2, h3, h4 {
@@ -124,7 +106,6 @@ ESTILOS_MODERNOS = """
         background-color: #f1f5f9 !important;
         border: 1px solid #cbd5e1 !important;
         border-radius: 12px !important;
-        box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
     }
 
     div.stButton > button {
@@ -140,16 +121,6 @@ ESTILOS_MODERNOS = """
         color: #0f172a !important;
         font-size: 15px !important;
         font-weight: 600 !important;
-    }
-
-    div.stButton > button:hover, 
-    div.stButton > button:active, 
-    div.stButton > button:focus {
-        background-color: #f1f5f9 !important;
-        border-color: #cbd5e1 !important;
-        color: #0f172a !important;
-        transform: none !important;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
     }
 
     div.stButton > button[kind="primary"] {
@@ -180,7 +151,6 @@ ESTILOS_MODERNOS = """
         border-radius: 10px !important;
         height: 50px !important;
         padding: 0px 24px !important;
-        transition: all 0.2s ease-in-out;
         box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
     }
 
@@ -188,11 +158,6 @@ ESTILOS_MODERNOS = """
         color: #ffffff !important;
         font-size: 15px !important;
         font-weight: 600 !important;
-    }
-
-    div.stDownloadButton > button:hover {
-        background: #334155 !important;
-        transform: translateY(-1px);
     }
 
     .stTextInput input, .stNumberInput input, .stSelectbox select {
@@ -206,17 +171,16 @@ ESTILOS_MODERNOS = """
 
 st.markdown(ESTILOS_MODERNOS, unsafe_allow_html=True)
 
-# --- CONEXIÓN Y CONSULTAS A BASE DE DATOS (TURSO / SQLITE) ---
+# --- CONEXIÓN Y CONSULTAS A BASE DE DATOS ---
 def conectar_bd():
     try:
         url = st.secrets["turso"]["url"]
         auth_token = st.secrets["turso"]["auth_token"]
         if url.startswith("libsql://"):
             url = url.replace("libsql://", "https://")
-        client = libsql.create_client_sync(url=url, auth_token=auth_token)
-        return client
+        return libsql.create_client_sync(url=url, auth_token=auth_token)
     except Exception:
-        return sqlite3.connect("colegio.db")
+        return sqlite3.connect("colegio.db", check_same_thread=False)
 
 def consultar_sql(db, consulta, parametros=()):
     res = db.execute(consulta, parametros)
@@ -229,7 +193,6 @@ def consultar_sql(db, consulta, parametros=()):
 def ejecutar_sql(db, consulta, parametros=()):
     try:
         db.execute(consulta, parametros)
-        # Si la conexión es de tipo Turso sync y soporta commit/sync explícito
         if hasattr(db, 'commit'):
             db.commit()
     except Exception as e:
@@ -299,7 +262,7 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
         cuerpo_html = f"""
         <html>
           <body style="font-family: 'Inter', Arial, sans-serif; color: #1e293b; background-color: #f1f5f9; padding: 20px;">
-            <div style="max-width: 600px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <div style="max-width: 600px; margin: 0 auto; border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; background-color: #ffffff;">
               <h2 style="color: #0284c7; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-top: 0;">{titulo_correo}</h2>
               <p style="color: #475569;">Estimado/a representante o usuario,</p>
               <p style="color: #475569;">Se ha registrado un marcaje de asistencia con los siguientes detalles:</p>
@@ -310,7 +273,7 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
                 <li><strong>Fecha:</strong> {fecha}</li>
                 <li><strong>{etiqueta_hora}:</strong> {hora}</li>
               </ul>
-              <p style="font-size: 12px; color: #94a3b8; margin-top: 24px; border-top: 1px solid #f1f5f9; pt-2">Este es un mensaje automático enviado por el Sistema de Asistencia Escolar.</p>
+              <p style="font-size: 12px; color: #94a3b8; margin-top: 24px; border-top: 1px solid #f1f5f9;">Sistema de Asistencia Escolar.</p>
             </div>
           </body>
         </html>
@@ -327,9 +290,9 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
         return False, str(e)
 
 # --- LÓGICA DE REGISTRO VÍA URL (ENTRADA / SALIDA) ---
-query_params = st.query_params
-if "id" in query_params:
-    codigo_qr = query_params["id"]
+# Se utiliza st.query_params moderno en lugar del método deprecado
+if "id" in st.query_params:
+    codigo_qr = st.query_params["id"]
     
     ahora_ve = datetime.now(ZoneInfo("America/Caracas"))
     fecha_hoy = ahora_ve.strftime("%Y-%m-%d")
@@ -381,19 +344,15 @@ if "id" in query_params:
                         tipo_registro=tipo_movimiento
                     )
                     if exito:
-                        st.info(f"Se ha enviado una notificación de {tipo_movimiento.lower()} por correo a: {email_usuario}")
+                        st.info(f"Notificación enviada por correo a: {email_usuario}")
                     else:
-                        st.warning(f"{tipo_movimiento} registrada, pero no se pudo enviar el correo ({msg}).")
-                else:
-                    st.caption("El usuario no tiene un correo electrónico asociado para notificaciones.")
-
+                        st.warning(f"{tipo_movimiento} registrada, pero falló el envío de correo ({msg}).")
             except Exception as e:
                 st.error(f"Error al guardar la asistencia: {e}")
         else:
-            st.warning(f"{nombre} {apellido}, ya registraste tanto tu ENTRADA como tu SALIDA para la jornada de hoy.")
-
+            st.warning(f"{nombre} {apellido}, ya registraste tu ENTRADA y SALIDA el día de hoy.")
     else:
-        st.error(f"El código ID '{codigo_qr}' no está registrado en el sistema.")
+        st.error(f"El código ID '{codigo_qr}' no está registrado.")
     
     st.markdown("---")
 
@@ -416,7 +375,7 @@ with st.sidebar:
 
     st.markdown("---")
     with st.expander("Configuración Correo (SMTP)"):
-        st.caption("Ajustes para envío automático:")
+        st.caption("Ajustes automáticos:")
         st.session_state["smtp_server"] = st.text_input("Servidor SMTP", value=st.session_state.get("smtp_server", "smtp.gmail.com"))
         st.session_state["smtp_port"] = st.number_input("Puerto", value=st.session_state.get("smtp_port", 587))
         st.session_state["smtp_email"] = st.text_input("Correo Emisor", value=st.session_state.get("smtp_email", ""))
@@ -425,7 +384,7 @@ with st.sidebar:
 # --- SECCIÓN 1: DASHBOARD & ASISTENCIAS ---
 if opcion == "Dashboard & Asistencias":
     st.title("Resumen de Asistencia Diaria")
-    st.write("Monitoreo en tiempo real de entradas y salidas en el colegio.")
+    st.write("Monitoreo en tiempo real de entradas y salidas.")
     
     fecha_hoy = datetime.now(ZoneInfo("America/Caracas")).strftime("%Y-%m-%d")
     
@@ -465,38 +424,27 @@ if opcion == "Dashboard & Asistencias":
 # --- SECCIÓN 2: DIRECTORIO POR GRADOS Y PERSONAL ---
 elif opcion == "Directorio por Grados":
     st.title("Directorio por Grados y Personal")
-    st.write("Seleccione una categoría para consultar y editar directamente en la tabla interactiva:")
+    st.write("Selecciona una categoría para consultar y editar directamente la información:")
 
     categorias = [
-        ("Inicial", "Inicial"),
-        ("1er Grado", "1ro"),
-        ("2do Grado", "2do"),
-        ("3er Grado", "3ro"),
-        ("4to Grado", "4to"),
-        ("5to Grado", "5to"),
-        ("6to Grado", "6to"),
-        ("Personal", "Personal")
+        ("Inicial", "Inicial"), ("1er Grado", "1ro"), ("2do Grado", "2do"), ("3er Grado", "3ro"),
+        ("4to Grado", "4to"), ("5to Grado", "5to"), ("6to Grado", "6to"), ("Personal", "Personal")
     ]
 
     col1, col2, col3, col4 = st.columns(4)
     cols_f1 = [col1, col2, col3, col4]
-    
     for idx, (label, clave) in enumerate(categorias[:4]):
         es_activo = (st.session_state["grado_seleccionado"] == clave)
-        tipo_btn = "primary" if es_activo else "secondary"
-        if cols_f1[idx].button(label, key=f"btn_{clave}", type=tipo_btn):
+        if cols_f1[idx].button(label, key=f"btn_{clave}", type="primary" if es_activo else "secondary"):
             st.session_state["grado_seleccionado"] = clave
             st.rerun()
 
     st.write("")
-
     col5, col6, col7, col8 = st.columns(4)
     cols_f2 = [col5, col6, col7, col8]
-    
     for idx, (label, clave) in enumerate(categorias[4:]):
         es_activo = (st.session_state["grado_seleccionado"] == clave)
-        tipo_btn = "primary" if es_activo else "secondary"
-        if cols_f2[idx].button(label, key=f"btn_{clave}", type=tipo_btn):
+        if cols_f2[idx].button(label, key=f"btn_{clave}", type="primary" if es_activo else "secondary"):
             st.session_state["grado_seleccionado"] = clave
             st.rerun()
 
@@ -516,7 +464,7 @@ elif opcion == "Directorio por Grados":
         titulo_seccion = f"Lista de Alumnos: Grado {cat_activa}"
 
     st.subheader(f"{titulo_seccion} ({len(df_grupo)} asignados)")
-    st.caption("💡 Puede editar cualquier celda haciendo doble clic sobre ella en la tabla inferior. Al finalizar, haga clic en el botón de guardar cambios dentro del formulario.")
+    st.caption("💡 Puedes editar cualquier celda haciendo doble clic y luego haz clic en guardar.")
 
     if not df_grupo.empty:
         df_tabla_limpia = df_grupo.rename(columns={
@@ -533,7 +481,6 @@ elif opcion == "Directorio por Grados":
                 key=f"editor_{cat_activa}",
                 disabled=["Código ID"]
             )
-
             submitted = st.form_submit_button("💾 Guardar Cambios Realizados")
 
             if submitted:
@@ -549,23 +496,21 @@ elif opcion == "Directorio por Grados":
                             row["Grado"], row["Cargo / Función"], row["Correo Electrónico"], 
                             row["Código ID"]
                         ))
-                    st.success("¡Todos los cambios se han guardado exitosamente en la base de datos!")
+                    st.success("¡Cambios guardados con éxito!")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error al actualizar los datos: {e}")
+                    st.error(f"Error al actualizar: {e}")
     else:
         st.info("No hay usuarios registrados en esta categoría.")
 
-# --- SECCIÓN 3: EXPORTAR REPORTES POR GRADO Y GENERAL ---
+# --- SECCIÓN 3: EXPORTAR REPORTES ---
 elif opcion == "Exportar Reportes":
     st.title("Exportación de Reportes de Asistencia")
-    st.write("Seleccione la fecha deseada para consultar, agregar notas en la tabla y descargar reportes:")
+    st.write("Selecciona una fecha y gestiona las notas u observaciones:")
 
     col_fecha, _ = st.columns([1, 2])
     with col_fecha:
         fecha_sel = st.date_input("Seleccionar Fecha", datetime.now(ZoneInfo("America/Caracas")))
-
-    st.write("")
 
     db = conectar_bd()
     filas = consultar_sql(db, '''
@@ -580,11 +525,9 @@ elif opcion == "Exportar Reportes":
     
     cols_exp = ["ID_Asistencia", "Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo", "Notas"]
     df_global = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
-
     df_global_vista = df_global.drop(columns=["ID_Asistencia"]) if not df_global.empty else df_global
 
     st.subheader(f"Reporte General Consolidado ({len(df_global_vista)} registros)")
-    st.caption("💡 Haz doble clic en la columna **Notas**, escribe tus observaciones, haz clic en **Guardar Cambios** y tus datos quedarán almacenados permanentemente en Turso.")
 
     if not df_global.empty:
         with st.form(key="form_reporte_global"):
@@ -595,7 +538,6 @@ elif opcion == "Exportar Reportes":
                 key="editor_reporte_global",
                 disabled=["Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]
             )
-            
             btn_guardar_global = st.form_submit_button("💾 Guardar Cambios en Notas (General)")
             
             if btn_guardar_global:
@@ -608,125 +550,20 @@ elif opcion == "Exportar Reportes":
                             INSERT OR REPLACE INTO notas_asistencia (asistencia_id, nota)
                             VALUES (?, ?)
                         ''', (asist_id, nota_val))
-                    st.success("¡Notas guardadas permanentemente en Turso con éxito!")
+                    st.success("¡Notas guardadas correctamente!")
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error al guardar las notas en la base de datos: {e}")
+                    st.error(f"Error al guardar notas: {e}")
 
         csv_global = df_global_editado.to_csv(index=False, encoding='utf-8-sig')
         st.download_button(
-            label=f"Descargar Reporte COMPLETO en Excel (CSV) - {len(df_global_editado)} registros",
+            label=f"Descargar Reporte COMPLETO (CSV) - {len(df_global_editado)} registros",
             data=csv_global,
             file_name=f"asistencia_GENERAL_{fecha_sel.strftime('%Y-%m-%d')}.csv",
             mime="text/csv"
         )
     else:
         st.info(f"No hay registros generales para la fecha {fecha_sel.strftime('%Y-%m-%d')}.")
-
-    st.markdown("---")
-    st.subheader("Filtrar o Descargar por Grado Específico")
-
-    categorias_rep = [
-        ("Inicial", "Inicial"),
-        ("1er Grado", "1ro"),
-        ("2do Grado", "2do"),
-        ("3er Grado", "3ro"),
-        ("4to Grado", "4to"),
-        ("5to Grado", "5to"),
-        ("6to Grado", "6to"),
-        ("Personal", "Personal")
-    ]
-
-    col1, col2, col3, col4 = st.columns(4)
-    cols_f1 = [col1, col2, col3, col4]
-    
-    for idx, (label, clave) in enumerate(categorias_rep[:4]):
-        es_activo = (st.session_state["reporte_grado_sel"] == clave)
-        tipo_btn = "primary" if es_activo else "secondary"
-        if cols_f1[idx].button(label, key=f"rep_btn_{clave}", type=tipo_btn):
-            st.session_state["reporte_grado_sel"] = clave
-            st.rerun()
-
-    st.write("")
-
-    col5, col6, col7, col8 = st.columns(4)
-    cols_f2 = [col5, col6, col7, col8]
-    
-    for idx, (label, clave) in enumerate(categorias_rep[4:]):
-        es_activo = (st.session_state["reporte_grado_sel"] == clave)
-        tipo_btn = "primary" if es_activo else "secondary"
-        if cols_f2[idx].button(label, key=f"rep_btn_{clave}", type=tipo_btn):
-            st.session_state["reporte_grado_sel"] = clave
-            st.rerun()
-
-    st.markdown("---")
-
-    cat_rep_activa = st.session_state["reporte_grado_sel"]
-
-    db = conectar_bd()
-    if cat_rep_activa == "Personal":
-        filas = consultar_sql(db, '''
-            SELECT a.id as ID_Asistencia, a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
-                   u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo, COALESCE(n.nota, '') as Notas 
-            FROM asistencias a
-            JOIN usuarios u ON a.codigo_id = u.codigo_id
-            LEFT JOIN notas_asistencia n ON a.id = n.asistencia_id
-            WHERE a.fecha = ? AND u.tipo_persona = 'Personal'
-            ORDER BY a.hora ASC
-        ''', (fecha_sel.strftime("%Y-%m-%d"),))
-        nombre_archivo = f"asistencia_Personal_{fecha_sel.strftime('%Y-%m-%d')}.csv"
-        etiqueta_seccion = "Reporte de Asistencia: Personal"
-    else:
-        filas = consultar_sql(db, '''
-            SELECT a.id as ID_Asistencia, a.fecha as Fecha, a.hora as Hora, a.tipo_registro as Movimiento, a.codigo_id as Código, u.nombre as Nombre, u.apellido as Apellido, 
-                   u.tipo_persona as Rol, u.grado_seccion as Grado, u.funcion_cargo as Cargo, u.email as Correo, COALESCE(n.nota, '') as Notas 
-            FROM asistencias a
-            JOIN usuarios u ON a.codigo_id = u.codigo_id
-            LEFT JOIN notas_asistencia n ON a.id = n.asistencia_id
-            WHERE a.fecha = ? AND u.grado_seccion = ?
-            ORDER BY a.hora ASC
-        ''', (fecha_sel.strftime("%Y-%m-%d"), cat_rep_activa))
-        nombre_archivo = f"asistencia_{cat_rep_activa}_{fecha_sel.strftime('%Y-%m-%d')}.csv"
-        etiqueta_seccion = f"Reporte de Asistencia: Grado {cat_rep_activa}"
-
-    df_export = pd.DataFrame(filas, columns=cols_exp) if filas else pd.DataFrame(columns=cols_exp)
-    df_export_vista = df_export.drop(columns=["ID_Asistencia"]) if not df_export.empty else df_export
-
-    st.write(f"**{etiqueta_seccion} ({len(df_export_vista)} marcajes registrados)**")
-
-    if not df_export.empty:
-        with st.form(key=f"form_reporte_{cat_rep_activa}"):
-            df_export_editado = st.data_editor(
-                df_export_vista,
-                use_container_width=True,
-                hide_index=True,
-                key=f"editor_reporte_{cat_rep_activa}",
-                disabled=["Fecha", "Hora", "Movimiento", "Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]
-            )
-            
-            btn_guardar_grado = st.form_submit_button(f"💾 Guardar Cambios en Notas ({cat_rep_activa})")
-            
-            if btn_guardar_grado:
-                db_save = conectar_bd()
-                try:
-                    for idx, row in df_export_editado.iterrows():
-                        asist_id = df_export.iloc[idx]["ID_Asistencia"]
-                        nota_val = row["Notas"]
-                        ejecutar_sql(db_save, '''
-                            INSERT OR REPLACE INTO notas_asistencia (asistencia_id, nota)
-                            VALUES (?, ?)
-                        ''', (asist_id, nota_val))
-                    st.success(f"¡Notas para {cat_rep_activa} guardadas permanentemente en Turso con éxito!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error al guardar las notas en la base de datos: {e}")
-
-        csv = df_export_editado.to_csv(index=False, encoding='utf-8-sig')
-        
-        st.download_button(
-            label=f"Descargar Reporte ({cat_rep_activa}) en Excel (CSV)",
-            data=csv,
-            file_name=nombre_archivo,
             mime="text/csv"
         )
     else:
