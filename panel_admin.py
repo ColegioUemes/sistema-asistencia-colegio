@@ -204,11 +204,20 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
     except Exception as e:
         return False, str(e)
 
-# --- PROCESAMIENTO DE ESCANEO QR (SOLO SI ESTÁ AUTORIZADO) ---
+# --- PROCESAMIENTO DE ESCANEO QR CON VALIDACIÓN DE TOKEN (PASO 1) ---
 query_params = st.query_params
 
 if "id" in query_params:
     codigo_qr = query_params["id"]
+    token_recibido = query_params.get("token", "")
+    
+    # Token secreto que SOLO tu aplicación cliente/móvil autorizada conoce
+    TOKEN_VALIDO_APP = "SarratudSecureApp2026*"
+    
+    if token_recibido != TOKEN_VALIDO_APP:
+        st.error("🚫 Acceso Denegado: Esta solicitud no proviene de la Aplicación Oficial Autorizada.")
+        st.stop()
+
     ahora_ve = datetime.now(ZoneInfo("America/Caracas"))
     fecha_hoy = ahora_ve.strftime("%Y-%m-%d")
     hora_actual = ahora_ve.strftime("%H:%M:%S")
