@@ -289,68 +289,38 @@ def enviar_correo_confirmacion(destinatario, nombre_completo, tipo_persona, grad
     except Exception as e:
         return False, str(e)
 
-# --- SISTEMA DE AUTENTICACIÓN PERSISTENTE (VÍA URL PARAMS) ---
-# Comprobamos si la URL ya trae el token de sesión activa
-sesion_url = st.query_params.get("sesion", "")
-
-if sesion_url == "activa":
+# --- VALIDACIÓN DE SESIÓN PERSISTENTE VÍA URL ---
+# Si la URL trae el token de seguridad autorizado, mantenemos la sesión abierta en el dispositivo
+if st.query_params.get("sesion") == "activa_uemessarratud":
     st.session_state["autenticado"] = True
 
+# --- 1. PANTALLA DE LOGIN (SI NO HAY SESIÓN ACTIVA EN ESTE NAVEGADOR) ---
 if not st.session_state.get("autenticado", False):
     st.title("🔒 Acceso Restringido - Control Escolar")
-    st.write("Por seguridad, el sistema requiere inicio de sesión de personal autorizado para procesar asistencias o administrar el sistema.")
+    st.write("Para escanear códigos QR y registrar asistencias, el dispositivo debe estar autorizado con usuario y contraseña:")
     
     with st.form("form_login"):
-        usuario_input = st.text_input("Usuario o Correo Autorizado")
+        usuario_input = st.text_input("Usuario")
         password_input = st.text_input("Contraseña", type="password")
-        btn_login = st.form_submit_button("Iniciar Sesión")
+        btn_login = st.form_submit_button("Autorizar Dispositivo")
         
         if btn_login:
-            try:
-                admin_user = st.secrets["auth"]["usuario"]
-                admin_pass = st.secrets["auth"]["password"]
-            except Exception:
-                admin_user = "UEMES"
-                admin_pass = "Sarratud2026"
+            admin_user = "UEMES"
+            admin_pass = "Sarratud2026"
 
             if usuario_input == admin_user and password_input == admin_pass:
                 st.session_state["autenticado"] = True
-                # Fijamos el parámetro en la URL del teléfono para que resista recargas al usar la cámara/QR
-                st.query_params["sesion"] = "activa"
-                st.success("¡Acceso concedido!")
+                # Fijamos el token en la URL para que el navegador del teléfono lo retenga al recargar con la cámara
+                st.query_params["sesion"] = "activa_uemessarratud"
+                st.success("¡Dispositivo autorizado con éxito! Ya puedes comenzar a escanear.")
                 st.rerun()
             else:
                 st.error("Credenciales incorrectas. Verifique su usuario y contraseña.")
     
     st.stop()
 
-# --- SI YA ESTÁ AUTENTICADO, CONTINÚA LA APLICACIÓN NORMAL ---
-
-with st.sidebar:
-    st.title("Control Escolar")
-    if st.button("🔒 Cerrar Sesión"):
-        st.session_state["autenticado"] = False
-        # Limpiamos el parámetro de sesión de la URL al cerrar sesión
-        if "sesion" in st.query_params:
-            del st.query_params["sesion"]
-        st.rerun()
-    st.markdown("---")
-    
-    opcion = st.radio(
-        "Menú Principal",
-        ["Dashboard & Asistencias", "Directorio por Grados", "Exportar Reportes"]
-    )
-
-    st.markdown("---")
-    with st.expander("Configuración Correo (SMTP)"):
-        st.caption("Ajustes automáticos:")
-        st.session_state["smtp_server"] = st.text_input("Servidor SMTP", value=st.session_state.get("smtp_server", "smtp.gmail.com"))
-        st.session_state["smtp_port"] = st.number_input("Puerto", value=st.session_state.get("smtp_port", 587))
-        st.session_state["smtp_email"] = st.text_input("Correo Emisor", value=st.session_state.get("smtp_email", ""))
-        st.session_state["smtp_password"] = st.text_input("Contraseña / App Pass", type="password", value=st.session_state.get("smtp_password", ""))
-
-# --- LÓGICA DE REGISTRO VÍA URL (ENTRADA / SALIDA) ---
-if "id" in st.query_params and st.query_params["id"] != "activa":
+# --- 2. PROCESAMIENTO DEL QR (SOLO SI EL DISPOSITIVO ESTÁ AUTORIZADO) ---
+if "id" in st.query_params and st.query_params["id"] != "activa_uemessarratud":
     codigo_qr = st.query_params["id"]
     
     ahora_ve = datetime.now(ZoneInfo("America/Caracas"))
@@ -360,6 +330,8 @@ if "id" in st.query_params and st.query_params["id"] != "activa":
     db = conectar_bd()
     filas_usr = consultar_sql(db, "SELECT nombre, apellido, tipo_persona, grado_seccion, email FROM usuarios WHERE codigo_id = ?", (codigo_qr,))
     usuario = filas_usr[0] if filas_usr else None
+
+    st.title("📲 Control de Asistencia - Entrada / Salida")
 
     if usuario:
         nombre, apellido, tipo_persona, grado, email_usuario = usuario[0], usuario[1], usuario[2], usuario[3], usuario[4]
@@ -390,7 +362,9 @@ if "id" in st.query_params and st.query_params["id"] != "activa":
                     (codigo_qr, fecha_hoy, hora_actual, tipo_movimiento)
                 )
 
-                st.success(f"¡{tipo_movimiento} registrada correctamente! Marcaje para {nombre} {apellido} ({tipo_persona} - {grado}) a las {hora_actual}.")
+                st.success(f"¡{tipo_movimiento} registrada correctamente!")
+                st.markdown(f"### Estudiante: **{nombre} {apellido}**")
+                st.write(f"**Rol:** {tipo_persona} | **Grado:** {grado} | **Hora:** {hora_actual}")
 
                 if email_usuario:
                     exito, msg = enviar_correo_confirmacion(
@@ -409,11 +383,42 @@ if "id" in st.query_params and st.query_params["id"] != "activa":
             except Exception as e:
                 st.error(f"Error al guardar la asistencia: {e}")
         else:
-            st.warning(f"{nombre} {apellido}, ya registraste tu ENTRADA y SALIDA el día de hoy.")
+            st.warning(f"⚠️ {nombre} {apellido}, ya registraste tu ENTRADA y SALIDA el día de hoy.")
     else:
-        st.error(f"El código ID '{codigo_qr}' no está registrado.")
+        st.error(f"El código ID '{codigo_qr}' no está registrado en la base de datos.")
     
     st.markdown("---")
+    # Botón rápido para volver al panel manteniendo el token activo
+    if st.button("Volver al Panel de Administración"):
+        # Mantenemos el parámetro de sesión activa al regresar
+        st.query_params["sesion"] = "activa_uemessarratud"
+        st.rerun()
+    
+    st.stop()
+
+# --- 3. PANEL DE ADMINISTRACIÓN (SI EL DISPOSITIVO TIENE LA SESIÓN ACTIVA) ---
+
+with st.sidebar:
+    st.title("Control Escolar")
+    if st.button("🔒 Bloquear Dispositivo"):
+        st.session_state["autenticado"] = False
+        if "sesion" in st.query_params:
+            del st.query_params["sesion"]
+        st.rerun()
+    st.markdown("---")
+    
+    opcion = st.radio(
+        "Menú Principal",
+        ["Dashboard & Asistencias", "Directorio por Grados", "Exportar Reportes"]
+    )
+
+    st.markdown("---")
+    with st.expander("Configuración Correo (SMTP)"):
+        st.caption("Ajustes automáticos:")
+        st.session_state["smtp_server"] = st.text_input("Servidor SMTP", value=st.session_state.get("smtp_server", "smtp.gmail.com"))
+        st.session_state["smtp_port"] = st.number_input("Puerto", value=st.session_state.get("smtp_port", 587))
+        st.session_state["smtp_email"] = st.text_input("Correo Emisor", value=st.session_state.get("smtp_email", ""))
+        st.session_state["smtp_password"] = st.text_input("Contraseña / App Pass", type="password", value=st.session_state.get("smtp_password", ""))
 
 # Variables de estado para navegación
 if "grado_seleccionado" not in st.session_state:
