@@ -80,6 +80,9 @@ if "cam_version" not in st.session_state:
 if "admin_filtro_activo" not in st.session_state:
     st.session_state["admin_filtro_activo"] = "Inicial"
 
+if "modo_edicion_tabla" not in st.session_state:
+    st.session_state["modo_edicion_tabla"] = False
+
 if st.session_state["modo_acceso"] is None:
     st.title("🏫 Sistema de Control de Asistencia UEMES")
     st.write("Seleccione cómo desea ingresar en este dispositivo:")
@@ -115,6 +118,7 @@ with st.sidebar:
     if st.button("🚪 Salir / Cambiar Modo"):
         st.session_state["modo_acceso"] = None
         st.session_state["admin_filtro_activo"] = "Inicial"
+        st.session_state["modo_edicion_tabla"] = False
         st.rerun()
     st.markdown("---")
     
@@ -210,11 +214,11 @@ if modo == "⚡ Registro de Asistencia":
 elif modo == "💻 Panel de Administración":
     st.title("💻 Panel de Administración UEMES")
     
-    tab1, tab2, tab3, tab4 = st.tabs([
+    # Reducido a 3 pestañas (sin la pestaña independiente de edición)
+    tab1, tab2, tab3 = st.tabs([
         "📊 Dashboard y Reportes", 
         "👥 Directorio General", 
-        "🎓 Estudiantes por Grado y Personal",
-        "✏️ Editar Usuario"
+        "🎓 Estudiantes por Grado y Personal"
     ])
     
     db = conectar_bd()
@@ -242,7 +246,7 @@ elif modo == "💻 Panel de Administración":
             st.info("Sin usuarios cargados.")
 
     with tab3:
-        st.subheader("🎓 Filtrar Listado por Grado o Personal")
+        st.subheader("🎓 Filtrar y Editar Listado por Grado o Personal")
         
         botones_orden = ["Inicial", "1ro", "2do", "3ro", "4to", "5to", "6to", "Personal"]
         cols_btns = st.columns(len(botones_orden))
@@ -254,12 +258,12 @@ elif modo == "💻 Panel de Administración":
             with cols_btns[i]:
                 if st.button(nombre_btn, type=tipo_estilo, key=f"btn_filtro_{nombre_btn}"):
                     st.session_state["admin_filtro_activo"] = nombre_btn
+                    st.session_state["modo_edicion_tabla"] = False # Apagar modo edición al cambiar de grado
                     st.rerun()
 
-        st.write("---")
+        st.markdown("---")
 
         filtro_actual = st.session_state["admin_filtro_activo"]
-        titulo_tabla = f"Mostrando: {filtro_actual}"
         
         if filtro_actual == "Personal":
             filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios WHERE tipo_persona = 'Personal'")
@@ -270,71 +274,65 @@ elif modo == "💻 Panel de Administración":
 
         df_filtrado = pd.DataFrame(filas_filtradas, columns=["Código", "Nombre", "Apellido", "Rol", "Grado/Sección", "Cargo", "Correo"]) if filas_filtradas else pd.DataFrame()
         
-        st.write(f"**{titulo_tabla} ({len(df_filtrado)} registros)**")
+        col_t1, col_t2, col_t3 = st.columns([3, 1, 1])
+        with col_t1:
+            st.write(f"**Mostrando: {filtro_actual} ({len(df_filtrado)} registros)**")
         
+        with col_t2:
+            if not df_filtrado.empty:
+                if not st.session_state["modo_edicion_tabla"]:
+                    if st.button("✏️ Editar Usuario"):
+                        st.session_state["modo_edicion_tabla"] = True
+                        st.rerun()
+                else:
+                    if st.button("❌ Cancelar Edición"):
+                        st.session_state["modo_edicion_tabla"] = False
+                        st.rerun()
+
+        with col_t3:
+            if not df_filtrado.empty:
+                st.download_button(
+                    "📥 Descargar CSV", 
+                    df_filtrado.to_csv(index=False).encode('utf-8'), 
+                    f"listado_{filtro_actual}.csv", 
+                    "text/csv"
+                )
+
         if not df_filtrado.empty:
-            st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
-            st.download_button(
-                f"Descargar lista de {filtro_actual} en CSV", 
-                df_filtrado.to_csv(index=False).encode('utf-8'), 
-                f"listado_{filtro_actual}.csv", 
-                "text/csv"
-            )
+            if st.session_state["modo_edicion_tabla"]:
+                st.info("💡 Haz doble clic sobre cualquier celda para editar sus datos (el Código no se puede modificar). Luego haz clic en el botón de guardar de abajo.")
+                
+                # Configuramos el editor de datos interactivo bloqueando la columna 'Código'
+                df_editado = st.data_editor(
+                    df_filtrado,
+                    use_container_width=True,
+                    hide_index=True,
+                    disabled=["Código"]
+                )
+                
+                if st.button("💾 Guardar Datos en la Nube", type="primary"):
+                    try:
+                        for index, row in df_editado.iterrows():
+                            c_id = row["Código"]
+                            c_nom = str(row["Nombre"]).strip()
+                            c_ape = str(row["Apellido"]).strip()
+                            c_rol = str(row["Rol"]).strip()
+                            c_gra = str(row["Grado/Sección"]).strip()
+                            c_car = str(row["Cargo"]).strip() if row["Cargo"] else ""
+                            c_mail = str(row["Correo"]).strip() if row["Correo"] else ""
+                            
+                            ejecutar_sql(
+                                db,
+                                "UPDATE usuarios SET nombre = ?, apellido = ?, tipo_persona = ?, grado_seccion = ?, funcion_cargo = ?, email = ? WHERE codigo_id = ?",
+                                (c_nom, c_ape, c_rol, c_gra, c_car, c_mail, c_id)
+                            )
+                        
+                        st.success("✅ ¡Todos los cambios se han guardado exitosamente en la nube!")
+                        st.session_state["modo_edicion_tabla"] = False
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al guardar los cambios: {e}")
+            else:
+                st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
         else:
             st.info(etiqueta_vacia)
-
-    with tab4:
-        st.subheader("✏️ Modificar Datos de Usuario")
-        st.write("Selecciona al usuario que deseas actualizar en la nube:")
-        
-        filas_todos = consultar_sql(db, "SELECT codigo_id, nombre, apellido FROM usuarios ORDER BY nombre ASC")
-        
-        if filas_todos:
-            # Crear diccionario para mapear la selección con el código ID
-            opciones_usuarios = {f"{r[1]} {r[2]} (Código: {r[0]})": r[0] for r in filas_todos}
-            usuario_seleccionado_label = st.selectbox("Buscar Estudiante o Personal:", list(opciones_usuarios.keys()))
-            
-            if usuario_seleccionado_label:
-                codigo_a_editar = opciones_usuarios[usuario_seleccionado_label]
-                
-                # Obtener todos los datos actuales del usuario seleccionado
-                datos_usr = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios WHERE codigo_id = ?", (codigo_a_editar,))
-                
-                if datos_usr:
-                    c_id, c_nombre, c_apellido, c_tipo, c_grado, c_cargo, c_email = datos_usr[0]
-                    
-                    with st.form(key="form_editar_usuario"):
-                        st.markdown(f"### Editando a: **{c_nombre} {c_apellido}**")
-                        
-                        # Código ID bloqueado (no editable)
-                        st.text_input("Código ID (No Modificable)", value=c_id, disabled=True)
-                        
-                        nuevo_nombre = st.text_input("Nombre", value=c_nombre if c_nombre else "")
-                        nuevo_apellido = st.text_input("Apellido", value=c_apellido if c_apellido else "")
-                        
-                        opciones_tipo = ["Estudiante", "Personal"]
-                        idx_tipo = opciones_tipo.index(c_tipo) if c_tipo in opciones_tipo else 0
-                        nuevo_tipo = st.selectbox("Tipo de Persona", opciones_tipo, index=idx_tipo)
-                        
-                        opciones_grados = ["Inicial", "1ro", "2do", "3ro", "4to", "5to", "6to", "Personal"]
-                        idx_grado = opciones_grados.index(c_grado) if c_grado in opciones_grados else 0
-                        nuevo_grado = st.selectbox("Grado o Sección", opciones_grados, index=idx_grado)
-                        
-                        nuevo_cargo = st.text_input("Función o Cargo (Si aplica)", value=c_cargo if c_cargo else "")
-                        nuevo_email = st.text_input("Correo Electrónico", value=c_email if c_email else "")
-                        
-                        btn_guardar = st.form_submit_button("💾 Guardar Cambios en la Nube")
-                        
-                        if btn_guardar:
-                            try:
-                                ejecutar_sql(
-                                    db, 
-                                    "UPDATE usuarios SET nombre = ?, apellido = ?, tipo_persona = ?, grado_seccion = ?, funcion_cargo = ?, email = ? WHERE codigo_id = ?",
-                                    (nuevo_nombre.strip(), nuevo_apellido.strip(), nuevo_tipo, nuevo_grado, nuevo_cargo.strip(), nuevo_email.strip(), c_id)
-                                )
-                                st.success("✅ ¡Cambios guardados con éxito en la nube!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error al actualizar los datos: {e}")
-        else:
-            st.info("No hay usuarios registrados en el sistema para editar.")
