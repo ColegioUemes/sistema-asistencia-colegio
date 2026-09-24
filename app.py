@@ -73,17 +73,25 @@ if "terminal" in query_params and query_params["terminal"] == TOKEN_TERMINAL_PUE
 if "modo_acceso" not in st.session_state:
     st.session_state["modo_acceso"] = None
 
+if "cam_version" not in st.session_state:
+    st.session_state["cam_version"] = 0
+
 if st.session_state["modo_acceso"] is None:
     st.title("🏫 Sistema de Control de Asistencia UEMES")
     st.write("Seleccione cómo desea ingresar en este dispositivo:")
     
     col_a, col_b = st.columns(2)
     with col_a:
-        st.markdown("### 📱 Modo Portón (Teléfono)")
+        st.markdown("### 📱 Registro de Asistencia")
         st.write("Exclusivo para el dispositivo que lee carnets en la entrada.")
-        if st.button("Activar Teléfono de Puerta"):
-            st.session_state["modo_acceso"] = "terminal_porton"
-            st.rerun()
+        user_reg = st.text_input("Usuario", key="user_reg_input")
+        pwd_reg = st.text_input("Contraseña", type="password", key="pwd_reg_input")
+        if st.button("Ingresar a Registro de Asistencia"):
+            if user_reg == "UEMES" and pwd_reg == "Sarratud2026":
+                st.session_state["modo_acceso"] = "terminal_porton"
+                st.rerun()
+            else:
+                st.error("Usuario o contraseña incorrectos.")
             
     with col_b:
         st.markdown("### 💻 Modo Administración (PC)")
@@ -106,12 +114,12 @@ with st.sidebar:
     st.markdown("---")
     
     if st.session_state["modo_acceso"] == "terminal_porton":
-        modo = "⚡ Escaneo Rápido (Puerta)"
-        st.info("📱 Terminal de Puerta Activa.")
+        modo = "⚡ Registro de Asistencia"
+        st.info("📱 Terminal de Asistencia Activa.")
     else:
-        modo = st.radio("Sección", ["📊 Dashboard y Reportes", "⚡ Escaneo Rápido (Puerta)", "👥 Directorio"])
+        modo = st.radio("Sección", ["📊 Dashboard y Reportes", "⚡ Registro de Asistencia", "👥 Directorio"])
 
-# --- LÓGICA DE PROCESAMIENTO DE MARCaje ---
+# --- LÓGICA DE PROCESAMIENTO DE MARCAJE ---
 def procesar_codigo_qr(codigo_limpio):
     if not codigo_limpio:
         return
@@ -144,8 +152,8 @@ def procesar_codigo_qr(codigo_limpio):
     else:
         st.error(f"❌ El código '{codigo_limpio}' no existe en la base de datos.")
 
-# --- MODO 1: ESCANEO RÁPIDO (CÁMARA O TECLADO) ---
-if modo == "⚡ Escaneo Rápido (Puerta)":
+# --- MODO 1: REGISTRO DE ASISTENCIA (CÁMARA O TECLADO) ---
+if modo == "⚡ Registro de Asistencia":
     st.title("⚡ Estación de Registro en Vivo")
     
     metodo_escaneo = st.radio("Seleccione método de lectura:", ["📷 Usar Cámara del Teléfono", "⌨️ Ingresar / Pistola USB"], horizontal=True)
@@ -154,7 +162,12 @@ if modo == "⚡ Escaneo Rápido (Puerta)":
 
     if metodo_escaneo == "📷 Usar Cámara del Teléfono":
         st.write("Apunta con la cámara de tu teléfono hacia el código QR del carnet:")
-        foto_qr = st.camera_input("Capturar Código QR")
+        
+        if st.button("🔄 Tomar nuevo registro"):
+            st.session_state["cam_version"] += 1
+            st.rerun()
+
+        foto_qr = st.camera_input("Capturar Código QR", key=f"cam_{st.session_state['cam_version']}")
         
         if foto_qr is not None:
             # Procesar la imagen con OpenCV para detectar el QR automáticamente
