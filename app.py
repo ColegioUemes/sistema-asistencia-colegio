@@ -51,8 +51,8 @@ def ejecutar_sql(db, consulta, parametros=()):
         db.execute(consulta, parametros)
         if hasattr(db, 'commit'):
             db.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Error SQL: {e}")
 
 def inicializar_tablas():
     try:
@@ -77,9 +77,8 @@ if "modo_acceso" not in st.session_state:
 if "cam_version" not in st.session_state:
     st.session_state["cam_version"] = 0
 
-# Variables de estado para el filtro de grados
 if "admin_filtro_activo" not in st.session_state:
-    st.session_state["admin_filtro_activo"] = "General"
+    st.session_state["admin_filtro_activo"] = "Inicial"
 
 if st.session_state["modo_acceso"] is None:
     st.title("🏫 Sistema de Control de Asistencia UEMES")
@@ -115,8 +114,7 @@ with st.sidebar:
     st.title("Control Escolar")
     if st.button("🚪 Salir / Cambiar Modo"):
         st.session_state["modo_acceso"] = None
-        # Limpiar estado de filtros al salir
-        st.session_state["admin_filtro_activo"] = "General"
+        st.session_state["admin_filtro_activo"] = "Inicial"
         st.rerun()
     st.markdown("---")
     
@@ -212,10 +210,11 @@ if modo == "⚡ Registro de Asistencia":
 elif modo == "💻 Panel de Administración":
     st.title("💻 Panel de Administración UEMES")
     
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab4 = st.tabs([
         "📊 Dashboard y Reportes", 
         "👥 Directorio General", 
-        "🎓 Estudiantes por Grado y Personal"
+        "🎓 Estudiantes por Grado y Personal",
+        "✏️ Editar Usuario"
     ])
     
     db = conectar_bd()
@@ -245,42 +244,29 @@ elif modo == "💻 Panel de Administración":
     with tab3:
         st.subheader("🎓 Filtrar Listado por Grado o Personal")
         
-        # Definir el orden de los botones
         botones_orden = ["Inicial", "1ro", "2do", "3ro", "4to", "5to", "6to", "Personal"]
-        
-        # Crear columnas para los botones (8 botones = 8 columnas)
         cols_btns = st.columns(len(botones_orden))
         
-        filtro_a_aplicar = None
-        
         for i, nombre_btn in enumerate(botones_orden):
-            # Resaltar el botón activo
             es_activo = (st.session_state["admin_filtro_activo"] == nombre_btn)
             tipo_estilo = "primary" if es_activo else "secondary"
             
             with cols_btns[i]:
-                if st.button(nombre_btn, type=tipo_estilo):
+                if st.button(nombre_btn, type=tipo_estilo, key=f"btn_filtro_{nombre_btn}"):
                     st.session_state["admin_filtro_activo"] = nombre_btn
-                    filtro_a_aplicar = nombre_btn
                     st.rerun()
 
         st.write("---")
 
-        # Lógica de filtrado basada en el botón activo
         filtro_actual = st.session_state["admin_filtro_activo"]
-        
         titulo_tabla = f"Mostrando: {filtro_actual}"
         
         if filtro_actual == "Personal":
             filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios WHERE tipo_persona = 'Personal'")
             etiqueta_vacia = "No hay personal registrado."
-        elif filtro_actual != "General": # Es un grado específico
+        else:
             filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios WHERE grado_seccion = ? AND tipo_persona != 'Personal'", (filtro_actual,))
             etiqueta_vacia = f"No hay estudiantes registrados en {filtro_actual}."
-        else:
-            # Esto no debería ocurrir por la lógica de los botones, pero es respaldo
-            filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios")
-            etiqueta_vacia = "No hay usuarios."
 
         df_filtrado = pd.DataFrame(filas_filtradas, columns=["Código", "Nombre", "Apellido", "Rol", "Grado/Sección", "Cargo", "Correo"]) if filas_filtradas else pd.DataFrame()
         
@@ -288,7 +274,6 @@ elif modo == "💻 Panel de Administración":
         
         if not df_filtrado.empty:
             st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
-            # Opcional: Botón de descarga para el subgrupo filtrado
             st.download_button(
                 f"Descargar lista de {filtro_actual} en CSV", 
                 df_filtrado.to_csv(index=False).encode('utf-8'), 
@@ -297,3 +282,59 @@ elif modo == "💻 Panel de Administración":
             )
         else:
             st.info(etiqueta_vacia)
+
+    with tab4:
+        st.subheader("✏️ Modificar Datos de Usuario")
+        st.write("Selecciona al usuario que deseas actualizar en la nube:")
+        
+        filas_todos = consultar_sql(db, "SELECT codigo_id, nombre, apellido FROM usuarios ORDER BY nombre ASC")
+        
+        if filas_todos:
+            # Crear diccionario para mapear la selección con el código ID
+            opciones_usuarios = {f"{r[1]} {r[2]} (Código: {r[0]})": r[0] for r in filas_todos}
+            usuario_seleccionado_label = st.selectbox("Buscar Estudiante o Personal:", list(opciones_usuarios.keys()))
+            
+            if usuario_seleccionado_label:
+                codigo_a_editar = opciones_usuarios[usuario_seleccionado_label]
+                
+                # Obtener todos los datos actuales del usuario seleccionado
+                datos_usr = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios WHERE codigo_id = ?", (codigo_a_editar,))
+                
+                if datos_usr:
+                    c_id, c_nombre, c_apellido, c_tipo, c_grado, c_cargo, c_email = datos_usr[0]
+                    
+                    with st.form(key="form_editar_usuario"):
+                        st.markdown(f"### Editando a: **{c_nombre} {c_apellido}**")
+                        
+                        # Código ID bloqueado (no editable)
+                        st.text_input("Código ID (No Modificable)", value=c_id, disabled=True)
+                        
+                        nuevo_nombre = st.text_input("Nombre", value=c_nombre if c_nombre else "")
+                        nuevo_apellido = st.text_input("Apellido", value=c_apellido if c_apellido else "")
+                        
+                        opciones_tipo = ["Estudiante", "Personal"]
+                        idx_tipo = opciones_tipo.index(c_tipo) if c_tipo in opciones_tipo else 0
+                        nuevo_tipo = st.selectbox("Tipo de Persona", opciones_tipo, index=idx_tipo)
+                        
+                        opciones_grados = ["Inicial", "1ro", "2do", "3ro", "4to", "5to", "6to", "Personal"]
+                        idx_grado = opciones_grados.index(c_grado) if c_grado in opciones_grados else 0
+                        nuevo_grado = st.selectbox("Grado o Sección", opciones_grados, index=idx_grado)
+                        
+                        nuevo_cargo = st.text_input("Función o Cargo (Si aplica)", value=c_cargo if c_cargo else "")
+                        nuevo_email = st.text_input("Correo Electrónico", value=c_email if c_email else "")
+                        
+                        btn_guardar = st.form_submit_button("💾 Guardar Cambios en la Nube")
+                        
+                        if btn_guardar:
+                            try:
+                                ejecutar_sql(
+                                    db, 
+                                    "UPDATE usuarios SET nombre = ?, apellido = ?, tipo_persona = ?, grado_seccion = ?, funcion_cargo = ?, email = ? WHERE codigo_id = ?",
+                                    (nuevo_nombre.strip(), nuevo_apellido.strip(), nuevo_tipo, nuevo_grado, nuevo_cargo.strip(), nuevo_email.strip(), c_id)
+                                )
+                                st.success("✅ ¡Cambios guardados con éxito en la nube!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error al actualizar los datos: {e}")
+        else:
+            st.info("No hay usuarios registrados en el sistema para editar.")
