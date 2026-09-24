@@ -7,6 +7,8 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 import libsql_client as libsql
+import cv2
+import numpy as np
 
 st.set_page_config(
     page_title="Control de Acceso Escolar",
@@ -61,24 +63,21 @@ def inicializar_tablas():
 
 inicializar_tablas()
 
-# --- GESTIÓN INTELIGENTE DE ACCESOS (TELÉFONO VS COMPUTADORA) ---
+# --- GESTIÓN INTELIGENTE DE ACCESOS ---
 TOKEN_TERMINAL_PUERTA = "SarratudTerminal2026*"
 query_params = st.query_params
 
-# Si entra desde el teléfono con el enlace secreto, lo autorizamos como terminal
 if "terminal" in query_params and query_params["terminal"] == TOKEN_TERMINAL_PUERTA:
     st.session_state["modo_acceso"] = "terminal_porton"
 
 if "modo_acceso" not in st.session_state:
     st.session_state["modo_acceso"] = None
 
-# Si no está autenticado ni viene por enlace secreto, mostramos pantalla de selección de ingreso
 if st.session_state["modo_acceso"] is None:
     st.title("🏫 Sistema de Control de Asistencia UEMES")
     st.write("Seleccione cómo desea ingresar en este dispositivo:")
     
     col_a, col_b = st.columns(2)
-    
     with col_a:
         st.markdown("### 📱 Modo Portón (Teléfono)")
         st.write("Exclusivo para el dispositivo que lee carnets en la entrada.")
@@ -98,60 +97,84 @@ if st.session_state["modo_acceso"] is None:
                 st.error("Clave de administración incorrecta.")
     st.stop()
 
-# --- MENÚ LATERAL SEGÚN EL TIPO DE DISPOSITIVO ---
+# --- MENÚ LATERAL ---
 with st.sidebar:
     st.title("Control Escolar")
-    
     if st.button("🚪 Salir / Cambiar Modo"):
         st.session_state["modo_acceso"] = None
         st.rerun()
-        
     st.markdown("---")
     
-    # Si entró como Terminal de Portón, limitamos las opciones para que el docente solo escanee rápido
     if st.session_state["modo_acceso"] == "terminal_porton":
         modo = "⚡ Escaneo Rápido (Puerta)"
-        st.info("📱 Este dispositivo está fijo como Terminal de Puerta.")
+        st.info("📱 Terminal de Puerta Activa.")
     else:
-        # Si entró desde la PC, tiene acceso completo a todo
         modo = st.radio("Sección", ["📊 Dashboard y Reportes", "⚡ Escaneo Rápido (Puerta)", "👥 Directorio"])
 
-# --- MODO 1: ESCANEO RÁPIDO CONTINUO (PUERTA) ---
+# --- LÓGICA DE PROCESAMIENTO DE MARCaje ---
+def procesar_codigo_qr(codigo_limpio):
+    if not codigo_limpio:
+        return
+        
+    ahora_ve = datetime.now(ZoneInfo("America/Caracas"))
+    fecha_hoy = ahora_ve.strftime("%Y-%m-%d")
+    hora_actual = ahora_ve.strftime("%H:%M:%S")
+
+    db = conectar_bd()
+    filas_usr = consultar_sql(db, "SELECT nombre, apellido, tipo_persona, grado_seccion, email FROM usuarios WHERE codigo_id = ?", (codigo_limpio,))
+    
+    if filas_usr:
+        nombre, apellido, tipo_persona, grado, email_usuario = filas_usr[0]
+
+        registros_hoy = consultar_sql(db, "SELECT tipo_registro FROM asistencias WHERE codigo_id = ? AND fecha = ?", (codigo_limpio, fecha_hoy))
+        tipos_registrados = [r[0] for r in registros_hoy] if registros_hoy else []
+
+        tipo_movimiento = "Entrada" if "Entrada" not in tipos_registrados else ("Salida" if "Salida" not in tipos_registrados else None)
+
+        if tipo_movimiento:
+            try:
+                ejecutar_sql(db, 'INSERT INTO asistencias (codigo_id, fecha, hora, tipo_registro) VALUES (?, ?, ?, ?)', (codigo_limpio, fecha_hoy, hora_actual, tipo_movimiento))
+                st.success(f"✅ ¡{tipo_movimiento} registrada con éxito!")
+                st.markdown(f"### 👤 {nombre} {apellido}")
+                st.write(f"**Grado/Rol:** {grado} ({tipo_persona}) | **Hora:** {hora_actual}")
+            except Exception as e:
+                st.error(f"Error al guardar: {e}")
+        else:
+            st.warning(f"⚠️ {nombre} {apellido} ya completó su Entrada y Salida el día de hoy.")
+    else:
+        st.error(f"❌ El código '{codigo_limpio}' no existe en la base de datos.")
+
+# --- MODO 1: ESCANEO RÁPIDO (CÁMARA O TECLADO) ---
 if modo == "⚡ Escaneo Rápido (Puerta)":
     st.title("⚡ Estación de Registro en Vivo")
-    st.write("Coloque el cursor en el campo e ingrese o escanee el código del carnet.")
+    
+    metodo_escaneo = st.radio("Seleccione método de lectura:", ["📷 Usar Cámara del Teléfono", "⌨️ Ingresar / Pistola USB"], horizontal=True)
 
-    codigo_input = st.text_input("Escanee o ingrese el Código ID del carnet:", key="input_lector", placeholder="Pase el carnet aquí...")
+    codigo_detectado = None
 
-    if codigo_input:
-        codigo_limpio = codigo_input.strip()
-        ahora_ve = datetime.now(ZoneInfo("America/Caracas"))
-        fecha_hoy = ahora_ve.strftime("%Y-%m-%d")
-        hora_actual = ahora_ve.strftime("%H:%M:%S")
-
-        db = conectar_bd()
-        filas_usr = consultar_sql(db, "SELECT nombre, apellido, tipo_persona, grado_seccion, email FROM usuarios WHERE codigo_id = ?", (codigo_limpio,))
+    if metodo_escaneo == "📷 Usar Cámara del Teléfono":
+        st.write("Apunta con la cámara de tu teléfono hacia el código QR del carnet:")
+        foto_qr = st.camera_input("Capturar Código QR")
         
-        if filas_usr:
-            nombre, apellido, tipo_persona, grado, email_usuario = filas_usr[0]
-
-            registros_hoy = consultar_sql(db, "SELECT tipo_registro FROM asistencias WHERE codigo_id = ? AND fecha = ?", (codigo_limpio, fecha_hoy))
-            tipos_registrados = [r[0] for r in registros_hoy] if registros_hoy else []
-
-            tipo_movimiento = "Entrada" if "Entrada" not in tipos_registrados else ("Salida" if "Salida" not in tipos_registrados else None)
-
-            if tipo_movimiento:
-                try:
-                    ejecutar_sql(db, 'INSERT INTO asistencias (codigo_id, fecha, hora, tipo_registro) VALUES (?, ?, ?, ?)', (codigo_limpio, fecha_hoy, hora_actual, tipo_movimiento))
-                    st.success(f"✅ ¡{tipo_movimiento} registrada con éxito!")
-                    st.markdown(f"### 👤 {nombre} {apellido}")
-                    st.write(f"**Grado/Rol:** {grado} ({tipo_persona}) | **Hora:** {hora_actual}")
-                except Exception as e:
-                    st.error(f"Error al guardar: {e}")
+        if foto_qr is not None:
+            # Procesar la imagen con OpenCV para detectar el QR automáticamente
+            bytes_data = foto_qr.getvalue()
+            array_bytes = np.frombuffer(bytes_data, np.uint8)
+            frame = cv2.imdecode(array_bytes, cv2.IMREAD_COLOR)
+            
+            detector = cv2.QRCodeDetector()
+            val, points, straight_qrcode = detector.detectAndDecode(frame)
+            
+            if val:
+                codigo_detectado = val.strip()
+                procesar_codigo_qr(codigo_detectado)
             else:
-                st.warning(f"⚠️ {nombre} {apellido} ya completó su Entrada y Salida el día de hoy.")
-        else:
-            st.error(f"❌ El código '{codigo_limpio}' no existe en la base de datos.")
+                st.warning("No se detectó ningún código QR claro en la foto. Intenta de nuevo enfocando mejor.")
+    
+    else:
+        codigo_input = st.text_input("Escanee o ingrese el Código ID del carnet:", key="input_lector", placeholder="Pase el carnet aquí...")
+        if codigo_input:
+            procesar_codigo_qr(codigo_input.strip())
 
     st.markdown("---")
     st.subheader("Últimos marcajes de esta sesión:")
@@ -161,7 +184,7 @@ if modo == "⚡ Escaneo Rápido (Puerta)":
         df_ultimos = pd.DataFrame(ultimos, columns=["Hora", "Acción", "Nombre", "Apellido", "Grado"])
         st.dataframe(df_ultimos, use_container_width=True, hide_index=True)
 
-# --- MODO 2: DASHBOARD Y REPORTES (PRINCIPALMENTE PARA PC) ---
+# --- MODO 2: DASHBOARD Y REPORTES ---
 elif modo == "📊 Dashboard y Reportes":
     st.title("📊 Resumen y Exportación de Asistencia")
     fecha_hoy = datetime.now(ZoneInfo("America/Caracas")).strftime("%Y-%m-%d")
