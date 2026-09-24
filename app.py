@@ -23,6 +23,7 @@ ESTILOS_GENERALES = """
     h1, h2, h3 { color: #ffffff !important; }
     [data-testid="stSidebar"] { background-color: #1e293b !important; }
     [data-testid="stSidebar"] * { color: #f8fafc !important; }
+    div.stButton > button { width: 100%; border-radius: 8px; }
 </style>
 """
 st.markdown(ESTILOS_GENERALES, unsafe_allow_html=True)
@@ -76,6 +77,10 @@ if "modo_acceso" not in st.session_state:
 if "cam_version" not in st.session_state:
     st.session_state["cam_version"] = 0
 
+# Variables de estado para el filtro de grados
+if "admin_filtro_activo" not in st.session_state:
+    st.session_state["admin_filtro_activo"] = "General"
+
 if st.session_state["modo_acceso"] is None:
     st.title("🏫 Sistema de Control de Asistencia UEMES")
     st.write("Seleccione cómo desea ingresar en este dispositivo:")
@@ -110,6 +115,8 @@ with st.sidebar:
     st.title("Control Escolar")
     if st.button("🚪 Salir / Cambiar Modo"):
         st.session_state["modo_acceso"] = None
+        # Limpiar estado de filtros al salir
+        st.session_state["admin_filtro_activo"] = "General"
         st.rerun()
     st.markdown("---")
     
@@ -117,7 +124,6 @@ with st.sidebar:
         modo = "⚡ Registro de Asistencia"
         st.info("📱 Terminal de Asistencia Activa.")
     else:
-        # En modo administración, fijamos la sección principal ya que ahora usamos solapas internas
         modo = "💻 Panel de Administración"
 
 # --- LÓGICA DE PROCESAMIENTO DE MARCAJE ---
@@ -206,7 +212,6 @@ if modo == "⚡ Registro de Asistencia":
 elif modo == "💻 Panel de Administración":
     st.title("💻 Panel de Administración UEMES")
     
-    # Pestañas organizadas para el administrador
     tab1, tab2, tab3 = st.tabs([
         "📊 Dashboard y Reportes", 
         "👥 Directorio General", 
@@ -238,35 +243,57 @@ elif modo == "💻 Panel de Administración":
             st.info("Sin usuarios cargados.")
 
     with tab3:
-        st.subheader("🎓 Listado por Grado, Sección y Personal")
+        st.subheader("🎓 Filtrar Listado por Grado o Personal")
         
-        # Obtener grados/secciones y tipos de persona únicos disponibles
-        filas_opciones = consultar_sql(db, "SELECT DISTINCT grado_seccion, tipo_persona FROM usuarios")
-        if filas_opciones:
-            grados_disponibles = sorted(list(set([f[0] for f in filas_opciones if f[0]])))
-            tipos_disponibles = sorted(list(set([f[1] for f in filas_opciones if f[1]])))
+        # Definir el orden de los botones
+        botones_orden = ["Inicial", "1ro", "2do", "3ro", "4to", "5to", "6to", "Personal"]
+        
+        # Crear columnas para los botones (8 botones = 8 columnas)
+        cols_btns = st.columns(len(botones_orden))
+        
+        filtro_a_aplicar = None
+        
+        for i, nombre_btn in enumerate(botones_orden):
+            # Resaltar el botón activo
+            es_activo = (st.session_state["admin_filtro_activo"] == nombre_btn)
+            tipo_estilo = "primary" if es_activo else "secondary"
             
-            filtro_tipo = st.selectbox("Filtrar por tipo de persona:", ["Todos"] + tipos_disponibles)
-            
-            if filtro_tipo != "Todos":
-                filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios WHERE tipo_persona = ?", (filtro_tipo,))
-            else:
-                if grados_disponibles:
-                    opcion_grado = st.selectbox("O filtrar por Grado/Sección específico:", ["Todos los Grados"] + grados_disponibles)
-                    if opcion_grado != "Todos los Grados":
-                        filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios WHERE grado_seccion = ?", (opcion_grado,))
-                    else:
-                        filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios")
-                else:
-                    filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios")
-            
-            df_filtrado = pd.DataFrame(filas_filtradas, columns=["Código", "Nombre", "Apellido", "Rol", "Grado/Sección", "Cargo", "Correo"]) if filas_filtradas else pd.DataFrame()
-            
-            if not df_filtrado.empty:
-                st.write(f"Mostrando **{len(df_filtrado)}** registros:")
-                st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
-                st.download_button("Descargar esta lista en CSV", df_filtrado.to_csv(index=False).encode('utf-8'), "listado_filtrado.csv", "text/csv")
-            else:
-                st.info("No se encontraron registros con los filtros seleccionados.")
+            with cols_btns[i]:
+                if st.button(nombre_btn, type=tipo_estilo):
+                    st.session_state["admin_filtro_activo"] = nombre_btn
+                    filtro_a_aplicar = nombre_btn
+                    st.rerun()
+
+        st.write("---")
+
+        # Lógica de filtrado basada en el botón activo
+        filtro_actual = st.session_state["admin_filtro_activo"]
+        
+        titulo_tabla = f"Mostrando: {filtro_actual}"
+        
+        if filtro_actual == "Personal":
+            filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios WHERE tipo_persona = 'Personal'")
+            etiqueta_vacia = "No hay personal registrado."
+        elif filtro_actual != "General": # Es un grado específico
+            filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios WHERE grado_seccion = ? AND tipo_persona != 'Personal'", (filtro_actual,))
+            etiqueta_vacia = f"No hay estudiantes registrados en {filtro_actual}."
         else:
-            st.info("No hay datos de usuarios registrados en el sistema.")
+            # Esto no debería ocurrir por la lógica de los botones, pero es respaldo
+            filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios")
+            etiqueta_vacia = "No hay usuarios."
+
+        df_filtrado = pd.DataFrame(filas_filtradas, columns=["Código", "Nombre", "Apellido", "Rol", "Grado/Sección", "Cargo", "Correo"]) if filas_filtradas else pd.DataFrame()
+        
+        st.write(f"**{titulo_tabla} ({len(df_filtrado)} registros)**")
+        
+        if not df_filtrado.empty:
+            st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
+            # Opcional: Botón de descarga para el subgrupo filtrado
+            st.download_button(
+                f"Descargar lista de {filtro_actual} en CSV", 
+                df_filtrado.to_csv(index=False).encode('utf-8'), 
+                f"listado_{filtro_actual}.csv", 
+                "text/csv"
+            )
+        else:
+            st.info(etiqueta_vacia)
