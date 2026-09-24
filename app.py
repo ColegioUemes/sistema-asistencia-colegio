@@ -117,7 +117,8 @@ with st.sidebar:
         modo = "⚡ Registro de Asistencia"
         st.info("📱 Terminal de Asistencia Activa.")
     else:
-        modo = st.radio("Sección", ["📊 Dashboard y Reportes", "⚡ Registro de Asistencia", "👥 Directorio"])
+        # En modo administración, fijamos la sección principal ya que ahora usamos solapas internas
+        modo = "💻 Panel de Administración"
 
 # --- LÓGICA DE PROCESAMIENTO DE MARCAJE ---
 def procesar_codigo_qr(codigo_limpio):
@@ -170,7 +171,6 @@ if modo == "⚡ Registro de Asistencia":
         foto_qr = st.camera_input("Capturar Código QR", key=f"cam_{st.session_state['cam_version']}")
         
         if foto_qr is not None:
-            # Procesar la imagen con OpenCV para detectar el QR automáticamente
             bytes_data = foto_qr.getvalue()
             array_bytes = np.frombuffer(bytes_data, np.uint8)
             frame = cv2.imdecode(array_bytes, cv2.IMREAD_COLOR)
@@ -180,7 +180,6 @@ if modo == "⚡ Registro de Asistencia":
             
             if val:
                 val_limpio = val.strip()
-                # Extraer el ID si el QR contiene un enlace web completo
                 if "id=" in val_limpio:
                     codigo_detectado = val_limpio.split("id=")[-1].split("&")[0].strip()
                 else:
@@ -203,28 +202,71 @@ if modo == "⚡ Registro de Asistencia":
         df_ultimos = pd.DataFrame(ultimos, columns=["Hora", "Acción", "Nombre", "Apellido", "Grado"])
         st.dataframe(df_ultimos, use_container_width=True, hide_index=True)
 
-# --- MODO 2: DASHBOARD Y REPORTES ---
-elif modo == "📊 Dashboard y Reportes":
-    st.title("📊 Resumen y Exportación de Asistencia")
-    fecha_hoy = datetime.now(ZoneInfo("America/Caracas")).strftime("%Y-%m-%d")
-    db = conectar_bd()
-    filas = consultar_sql(db, 'SELECT a.hora, a.tipo_registro, a.codigo_id, u.nombre, u.apellido, u.tipo_persona, u.grado_seccion FROM asistencias a JOIN usuarios u ON a.codigo_id = u.codigo_id WHERE a.fecha = ? ORDER BY a.hora DESC', (fecha_hoy,))
-    df = pd.DataFrame(filas, columns=["Hora", "Registro", "Código", "Nombre", "Apellido", "Tipo", "Grado"]) if filas else pd.DataFrame()
+# --- MODO 2: PANEL DE ADMINISTRACIÓN ---
+elif modo == "💻 Panel de Administración":
+    st.title("💻 Panel de Administración UEMES")
     
-    st.metric("Total Registros Hoy", len(df))
-    if not df.empty:
-        st.dataframe(df, use_container_width=True, hide_index=True)
-        st.download_button("Descargar CSV del Día", df.to_csv(index=False).encode('utf-8'), f"asistencia_{fecha_hoy}.csv", "text/csv")
-    else:
-        st.info("No hay registros hoy en la base de datos.")
-
-# --- MODO 3: DIRECTORIO ---
-elif modo == "👥 Directorio":
-    st.title("👥 Directorio de Estudiantes y Personal")
+    # Pestañas organizadas para el administrador
+    tab1, tab2, tab3 = st.tabs([
+        "📊 Dashboard y Reportes", 
+        "👥 Directorio General", 
+        "🎓 Estudiantes por Grado y Personal"
+    ])
+    
     db = conectar_bd()
-    filas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios")
-    df = pd.DataFrame(filas, columns=["Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]) if filas else pd.DataFrame()
-    if not df.empty:
-        st.dataframe(df, use_container_width=True, hide_index=True)
-    else:
-        st.info("Sin usuarios cargados.")
+    
+    with tab1:
+        st.subheader("📊 Resumen y Exportación de Asistencia de Hoy")
+        fecha_hoy = datetime.now(ZoneInfo("America/Caracas")).strftime("%Y-%m-%d")
+        filas_hoy = consultar_sql(db, 'SELECT a.hora, a.tipo_registro, a.codigo_id, u.nombre, u.apellido, u.tipo_persona, u.grado_seccion FROM asistencias a JOIN usuarios u ON a.codigo_id = u.codigo_id WHERE a.fecha = ? ORDER BY a.hora DESC', (fecha_hoy,))
+        df_hoy = pd.DataFrame(filas_hoy, columns=["Hora", "Registro", "Código", "Nombre", "Apellido", "Tipo", "Grado"]) if filas_hoy else pd.DataFrame()
+        
+        st.metric("Total Registros Hoy", len(df_hoy))
+        if not df_hoy.empty:
+            st.dataframe(df_hoy, use_container_width=True, hide_index=True)
+            st.download_button("Descargar CSV del Día", df_hoy.to_csv(index=False).encode('utf-8'), f"asistencia_{fecha_hoy}.csv", "text/csv")
+        else:
+            st.info("No hay registros hoy en la base de datos.")
+
+    with tab2:
+        st.subheader("👥 Directorio Completo")
+        filas_dir = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios")
+        df_dir = pd.DataFrame(filas_dir, columns=["Código", "Nombre", "Apellido", "Rol", "Grado", "Cargo", "Correo"]) if filas_dir else pd.DataFrame()
+        if not df_dir.empty:
+            st.dataframe(df_dir, use_container_width=True, hide_index=True)
+        else:
+            st.info("Sin usuarios cargados.")
+
+    with tab3:
+        st.subheader("🎓 Listado por Grado, Sección y Personal")
+        
+        # Obtener grados/secciones y tipos de persona únicos disponibles
+        filas_opciones = consultar_sql(db, "SELECT DISTINCT grado_seccion, tipo_persona FROM usuarios")
+        if filas_opciones:
+            grados_disponibles = sorted(list(set([f[0] for f in filas_opciones if f[0]])))
+            tipos_disponibles = sorted(list(set([f[1] for f in filas_opciones if f[1]])))
+            
+            filtro_tipo = st.selectbox("Filtrar por tipo de persona:", ["Todos"] + tipos_disponibles)
+            
+            if filtro_tipo != "Todos":
+                filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios WHERE tipo_persona = ?", (filtro_tipo,))
+            else:
+                if grados_disponibles:
+                    opcion_grado = st.selectbox("O filtrar por Grado/Sección específico:", ["Todos los Grados"] + grados_disponibles)
+                    if opcion_grado != "Todos los Grados":
+                        filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios WHERE grado_seccion = ?", (opcion_grado,))
+                    else:
+                        filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios")
+                else:
+                    filas_filtradas = consultar_sql(db, "SELECT codigo_id, nombre, apellido, tipo_persona, grado_seccion, funcion_cargo, email FROM usuarios")
+            
+            df_filtrado = pd.DataFrame(filas_filtradas, columns=["Código", "Nombre", "Apellido", "Rol", "Grado/Sección", "Cargo", "Correo"]) if filas_filtradas else pd.DataFrame()
+            
+            if not df_filtrado.empty:
+                st.write(f"Mostrando **{len(df_filtrado)}** registros:")
+                st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
+                st.download_button("Descargar esta lista en CSV", df_filtrado.to_csv(index=False).encode('utf-8'), "listado_filtrado.csv", "text/csv")
+            else:
+                st.info("No se encontraron registros con los filtros seleccionados.")
+        else:
+            st.info("No hay datos de usuarios registrados en el sistema.")
