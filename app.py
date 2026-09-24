@@ -166,7 +166,13 @@ if modo == "⚡ Escaneo Rápido (Puerta)":
             val, points, straight_qrcode = detector.detectAndDecode(frame)
             
             if val:
-                codigo_detectado = val.strip()
+                val_limpio = val.strip()
+                # Extraer el ID si el QR contiene un enlace web completo
+                if "id=" in val_limpio:
+                    codigo_detectado = val_limpio.split("id=")[-1].split("&")[0].strip()
+                else:
+                    codigo_detectado = val_limpio
+                    
                 procesar_codigo_qr(codigo_detectado)
             else:
                 st.warning("No se detectó ningún código QR claro en la foto. Intenta de nuevo enfocando mejor.")
